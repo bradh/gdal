@@ -2660,7 +2660,7 @@ def test_nitf_76():
     assert data == expected_data
 
 ###############################################################################
-# Test parsing MATESA TRE (STDI-0002 App AK)
+# Test parsing GRDPSB TRE (STDI-0002 App P)
 
 def test_nitf_77():
 
@@ -2684,6 +2684,102 @@ def test_nitf_77():
         <field name="LAD" value="000000000001" />
         <field name="LSO" value="00000000000" />
         <field name="PSO" value="00000000000" />
+      </group>
+    </repeated>
+  </tre>
+</tres>
+"""
+    assert data == expected_data
+
+###############################################################################
+# Test parsing ACCHZB TRE (STDI-0002 App P)
+
+def test_nitf_78():
+    ds = gdal.GetDriverByName('NITF').Create('/vsimem/nitf_78.ntf', 1, 1, options=['TRE=ACCHZB=01M  00129M  00129004+044.4130499724+33.69234401034+044.4945572008+33.67855217830+044.1731373448+32.79106350687+044.2538103407+32.77733592314'])
+    ds = None
+
+    ds = gdal.Open('/vsimem/nitf_78.ntf')
+    data = ds.GetMetadata('xml:TRE')[0]
+    ds = None
+
+    gdal.GetDriverByName('NITF').Delete('/vsimem/nitf_78.ntf')
+
+    expected_data = u"""<tres>
+  <tre name="ACCHZB" location="image">
+    <field name="NUM_ACHZ" value="01" />
+    <repeated name="ACCHZ" number="1">
+      <group index="0">
+        <field name="UNIAAH" value="M" />
+        <field name="AAH" value="00129" />
+        <field name="UNIAPH" value="M" />
+        <field name="APH" value="00129" />
+        <field name="NUM_PTS" value="004" />
+        <repeated name="POINT" number="4">
+          <group index="0">
+            <field name="LON" value="+044.4130499724" />
+            <field name="LAT" value="+33.69234401034" />
+          </group>
+          <group index="1">
+            <field name="LON" value="+044.4945572008" />
+            <field name="LAT" value="+33.67855217830" />
+          </group>
+          <group index="2">
+            <field name="LON" value="+044.1731373448" />
+            <field name="LAT" value="+32.79106350687" />
+          </group>
+          <group index="3">
+            <field name="LON" value="+044.2538103407" />
+            <field name="LAT" value="+32.77733592314" />
+          </group>
+        </repeated>
+      </group>
+    </repeated>
+  </tre>
+</tres>
+"""
+    assert data == expected_data
+
+###############################################################################
+# Test parsing ACCVTB TRE (STDI-0002 App P)
+
+def test_nitf_79():
+    ds = gdal.GetDriverByName('NITF').Create('/vsimem/nitf_79.ntf', 1, 1, options=['TRE=ACCVTB=01M  00095M  00095004+044.4130499724+33.69234401034+044.4945572008+33.67855217830+044.1731373448+32.79106350687+044.2538103407+32.77733592314'])
+    ds = None
+
+    ds = gdal.Open('/vsimem/nitf_79.ntf')
+    data = ds.GetMetadata('xml:TRE')[0]
+    ds = None
+
+    gdal.GetDriverByName('NITF').Delete('/vsimem/nitf_79.ntf')
+
+    expected_data = u"""<tres>
+  <tre name="ACCVTB" location="image">
+    <field name="NUM_ACVT" value="01" />
+    <repeated name="ACCVT" number="1">
+      <group index="0">
+        <field name="UNIAAV" value="M" />
+        <field name="AAV" value="00095" />
+        <field name="UNIAPV" value="M" />
+        <field name="APV" value="00095" />
+        <field name="NUM_PTS" value="004" />
+        <repeated name="POINT" number="4">
+          <group index="0">
+            <field name="LON" value="+044.4130499724" />
+            <field name="LAT" value="+33.69234401034" />
+          </group>
+          <group index="1">
+            <field name="LON" value="+044.4945572008" />
+            <field name="LAT" value="+33.67855217830" />
+          </group>
+          <group index="2">
+            <field name="LON" value="+044.1731373448" />
+            <field name="LAT" value="+32.79106350687" />
+          </group>
+          <group index="3">
+            <field name="LON" value="+044.2538103407" />
+            <field name="LAT" value="+32.77733592314" />
+          </group>
+        </repeated>
       </group>
     </repeated>
   </tre>

@@ -43,6 +43,128 @@
 #include <limits>
 #include <set>
 
+constexpr char ARROW_LETTER_BOOLEAN = 'b';
+constexpr char ARROW_LETTER_INT8 = 'c';
+constexpr char ARROW_LETTER_UINT8 = 'C';
+constexpr char ARROW_LETTER_INT16 = 's';
+constexpr char ARROW_LETTER_UINT16 = 'S';
+constexpr char ARROW_LETTER_INT32 = 'i';
+constexpr char ARROW_LETTER_UINT32 = 'I';
+constexpr char ARROW_LETTER_INT64 = 'l';
+constexpr char ARROW_LETTER_UINT64 = 'L';
+constexpr char ARROW_LETTER_FLOAT16 = 'e';
+constexpr char ARROW_LETTER_FLOAT32 = 'f';
+constexpr char ARROW_LETTER_FLOAT64 = 'g';
+constexpr char ARROW_LETTER_STRING = 'u';
+constexpr char ARROW_LETTER_LARGE_STRING = 'U';
+constexpr char ARROW_LETTER_BINARY = 'z';
+constexpr char ARROW_LETTER_LARGE_BINARY = 'Z';
+constexpr char ARROW_LETTER_DECIMAL = 'd';
+constexpr char ARROW_2ND_LETTER_LIST = 'l';
+constexpr char ARROW_2ND_LETTER_LARGE_LIST = 'L';
+static inline bool IsStructure(const char *format)
+{
+    return format[0] == '+' && format[1] == 's' && format[2] == 0;
+}
+static inline bool IsMap(const char *format)
+{
+    return format[0] == '+' && format[1] == 'm' && format[2] == 0;
+}
+static inline bool IsFixedWidthBinary(const char *format)
+{
+    return format[0] == 'w' && format[1] == ':';
+}
+static inline int GetFixedWithBinary(const char *format)
+{
+    return atoi(format + strlen("w:"));
+}
+static inline bool IsList(const char *format)
+{
+    return format[0] == '+' && format[1] == ARROW_2ND_LETTER_LIST &&
+           format[2] == 0;
+}
+static inline bool IsLargeList(const char *format)
+{
+    return format[0] == '+' && format[1] == ARROW_2ND_LETTER_LARGE_LIST &&
+           format[2] == 0;
+}
+static inline bool IsFixedSizeList(const char *format)
+{
+    return format[0] == '+' && format[1] == 'w' && format[2] == ':';
+}
+static inline int GetFixedSizeList(const char *format)
+{
+    return atoi(format + strlen("+w:"));
+}
+static inline bool IsDecimal(const char *format)
+{
+    return format[0] == ARROW_LETTER_DECIMAL && format[1] == ':';
+}
+static inline bool IsBoolean(const char *format)
+{
+    return format[0] == ARROW_LETTER_BOOLEAN && format[1] == 0;
+}
+static inline bool IsInt8(const char *format)
+{
+    return format[0] == ARROW_LETTER_INT8 && format[1] == 0;
+}
+static inline bool IsUInt8(const char *format)
+{
+    return format[0] == ARROW_LETTER_UINT8 && format[1] == 0;
+}
+static inline bool IsInt16(const char *format)
+{
+    return format[0] == ARROW_LETTER_INT16 && format[1] == 0;
+}
+static inline bool IsUInt16(const char *format)
+{
+    return format[0] == ARROW_LETTER_UINT16 && format[1] == 0;
+}
+static inline bool IsInt32(const char *format)
+{
+    return format[0] == ARROW_LETTER_INT32 && format[1] == 0;
+}
+static inline bool IsUInt32(const char *format)
+{
+    return format[0] == ARROW_LETTER_UINT32 && format[1] == 0;
+}
+static inline bool IsInt64(const char *format)
+{
+    return format[0] == ARROW_LETTER_INT64 && format[1] == 0;
+}
+static inline bool IsUInt64(const char *format)
+{
+    return format[0] == ARROW_LETTER_UINT64 && format[1] == 0;
+}
+static inline bool IsFloat16(const char *format)
+{
+    return format[0] == ARROW_LETTER_FLOAT16 && format[1] == 0;
+}
+static inline bool IsFloat32(const char *format)
+{
+    return format[0] == ARROW_LETTER_FLOAT32 && format[1] == 0;
+}
+static inline bool IsFloat64(const char *format)
+{
+    return format[0] == ARROW_LETTER_FLOAT64 && format[1] == 0;
+}
+static inline bool IsString(const char *format)
+{
+    return format[0] == ARROW_LETTER_STRING && format[1] == 0;
+}
+static inline bool IsLargeString(const char *format)
+{
+    return format[0] == ARROW_LETTER_LARGE_STRING && format[1] == 0;
+}
+static inline bool IsBinary(const char *format)
+{
+    return format[0] == ARROW_LETTER_BINARY && format[1] == 0;
+}
+static inline bool IsLargeBinary(const char *format)
+{
+    return format[0] == ARROW_LETTER_LARGE_BINARY && format[1] == 0;
+}
+
 /************************************************************************/
 /*                            TestBit()                                 */
 /************************************************************************/
@@ -2147,7 +2269,8 @@ static bool IsHandledSchema(bool bTopLevel, const struct ArrowSchema *schema,
                             const std::string &osPrefix, bool bHasAttrQuery,
                             const CPLStringList &aosUsedFields)
 {
-    if (strcmp(schema->format, "+s") == 0)
+    const char *format = schema->format;
+    if (IsStructure(format))
     {
         for (int64_t i = 0; i < schema->n_children; ++i)
         {
@@ -2164,10 +2287,8 @@ static bool IsHandledSchema(bool bTopLevel, const struct ArrowSchema *schema,
     }
 
     // Lists or maps
-    if (strcmp(schema->format, "+l") == 0 ||
-        strcmp(schema->format, "+L") == 0 ||
-        strncmp(schema->format, "+w:", strlen("+w:")) == 0 ||
-        strcmp(schema->format, "+m") == 0)
+    if (IsList(format) || IsLargeList(format) || IsFixedSizeList(format) ||
+        IsMap(format))
     {
         if (!IsHandledSchema(/* bTopLevel = */ false, schema->children[0],
                              osPrefix, bHasAttrQuery, aosUsedFields))
@@ -2180,7 +2301,7 @@ static bool IsHandledSchema(bool bTopLevel, const struct ArrowSchema *schema,
             CPLDebug("OGR",
                      "Field %s has unhandled format '%s' for an "
                      "attribute to filter on",
-                     (osPrefix + schema->name).c_str(), schema->format);
+                     (osPrefix + schema->name).c_str(), format);
             return false;
         }
         return true;
@@ -2213,26 +2334,25 @@ static bool IsHandledSchema(bool bTopLevel, const struct ArrowSchema *schema,
 
     for (const char *pszHandledFormat : apszHandledFormats)
     {
-        if (strcmp(schema->format, pszHandledFormat) == 0)
+        if (strcmp(format, pszHandledFormat) == 0)
         {
             return true;
         }
     }
 
-    if (bHasAttrQuery && strncmp(schema->format, "d:", 2) == 0)
+    if (IsDecimal(format))
     {
-        if (aosUsedFields.FindString((osPrefix + schema->name).c_str()) >= 0)
+        if (bHasAttrQuery &&
+            aosUsedFields.FindString((osPrefix + schema->name).c_str()) >= 0)
         {
             int nPrecision = 0;
             int nScale = 0;
             int nWidthInBytes = 0;
-            if (!ParseDecimalFormat(schema->format, nPrecision, nScale,
-                                    nWidthInBytes))
+            if (!ParseDecimalFormat(format, nPrecision, nScale, nWidthInBytes))
             {
                 CPLDebug("OGR", "%s",
-                         (std::string("Invalid field format ") +
-                          schema->format + " for field " + osPrefix +
-                          schema->name)
+                         (std::string("Invalid field format ") + format +
+                          " for field " + osPrefix + schema->name)
                              .c_str());
                 return false;
             }
@@ -2253,13 +2373,11 @@ static bool IsHandledSchema(bool bTopLevel, const struct ArrowSchema *schema,
                     "For decimal field, only precision up to 19 is supported");
                 return false;
             }
-
-            return true;
         }
+        return true;
     }
 
     const char *const apszHandledFormatsPrefix[] = {
-        "d:",    // decimal128, decimal256
         "w:",    // fixed width binary
         "tss:",  // timestamp [seconds] with timezone
         "tsm:",  // timestamp [milliseconds] with timezone
@@ -2269,15 +2387,14 @@ static bool IsHandledSchema(bool bTopLevel, const struct ArrowSchema *schema,
 
     for (const char *pszHandledFormat : apszHandledFormatsPrefix)
     {
-        if (strncmp(schema->format, pszHandledFormat,
-                    strlen(pszHandledFormat)) == 0)
+        if (strncmp(format, pszHandledFormat, strlen(pszHandledFormat)) == 0)
         {
             return true;
         }
     }
 
     CPLDebug("OGR", "Field %s has unhandled format '%s'",
-             (osPrefix + schema->name).c_str(), schema->format);
+             (osPrefix + schema->name).c_str(), format);
     return false;
 }
 
@@ -2312,8 +2429,8 @@ bool OGRLayer::CanPostFilterArrowArray(const struct ArrowSchema *schema) const
             const auto fieldSchema = schema->children[i];
             if (strcmp(fieldSchema->name, pszGeomFieldName) == 0)
             {
-                if (strcmp(fieldSchema->format, "z") != 0 &&
-                    strcmp(fieldSchema->format, "Z") != 0)
+                if (!IsBinary(fieldSchema->format) &&
+                    !IsLargeBinary(fieldSchema->format))
                 {
                     CPLDebug("OGR", "Geometry field %s has handled format '%s'",
                              fieldSchema->name, fieldSchema->format);
@@ -2714,80 +2831,77 @@ static bool CompactArray(const struct ArrowSchema *schema,
                          const std::vector<bool> &abyValidityFromFilters)
 {
     const char *format = schema->format;
-    if (strcmp(format, "+s") == 0)
+    if (IsStructure(format))
     {
         if (!CompactStructArray(schema, array, iStart, abyValidityFromFilters))
             return false;
     }
-    else if (strcmp(format, "+l") == 0)
+    else if (IsList(format))
     {
         if (!CompactListArray<uint32_t>(schema, array, iStart,
                                         abyValidityFromFilters))
             return false;
     }
-    else if (strcmp(format, "+L") == 0)
+    else if (IsLargeList(format))
     {
         if (!CompactListArray<uint64_t>(schema, array, iStart,
                                         abyValidityFromFilters))
             return false;
     }
-    else if (strcmp(format, "+m") == 0)
+    else if (IsMap(format))
     {
-        // Map
         if (!CompactMapArray(schema, array, iStart, abyValidityFromFilters))
             return false;
     }
-    else if (strncmp(format, "+w:", strlen("+w:")) == 0)
+    else if (IsFixedSizeList(format))
     {
-        const int N = atoi(format + strlen("+w:"));
+        const int N = GetFixedSizeList(format);
         if (N <= 0)
             return false;
         if (!CompactFixedSizeListArray(schema, array, static_cast<size_t>(N),
                                        iStart, abyValidityFromFilters))
             return false;
     }
-    else if (strcmp(format, "b") == 0)
+    else if (IsBoolean(format))
     {
         CompactBoolArray(array, iStart, abyValidityFromFilters);
     }
-    else if (strcmp(format, "c") == 0 || strcmp(format, "C") == 0)
+    else if (IsInt8(format) || IsUInt8(format))
     {
         CompactPrimitiveArray<uint8_t>(array, iStart, abyValidityFromFilters);
     }
-    else if (strcmp(format, "s") == 0 || strcmp(format, "S") == 0 ||
-             strcmp(format, "e") == 0)
+    else if (IsInt16(format) || IsUInt16(format) || IsFloat16(format))
     {
         CompactPrimitiveArray<uint16_t>(array, iStart, abyValidityFromFilters);
     }
-    else if (strcmp(format, "i") == 0 || strcmp(format, "I") == 0 ||
-             strcmp(format, "f") == 0 || strcmp(format, "tdD") == 0 ||
-             strcmp(format, "tts") == 0 || strcmp(format, "ttm") == 0)
+    else if (IsInt32(format) || IsUInt32(format) || IsFloat32(format) ||
+             strcmp(format, "tdD") == 0 || strcmp(format, "tts") == 0 ||
+             strcmp(format, "ttm") == 0)
     {
         CompactPrimitiveArray<uint32_t>(array, iStart, abyValidityFromFilters);
     }
-    else if (strcmp(format, "l") == 0 || strcmp(format, "L") == 0 ||
-             strcmp(format, "g") == 0 || strcmp(format, "tdm") == 0 ||
-             strcmp(format, "ttu") == 0 || strcmp(format, "ttn") == 0 ||
-             strncmp(format, "ts", 2) == 0)
+    else if (IsInt64(format) || IsUInt64(format) || IsFloat64(format) ||
+             strcmp(format, "tdm") == 0 || strcmp(format, "ttu") == 0 ||
+             strcmp(format, "ttn") == 0 || strncmp(format, "ts", 2) == 0)
     {
         CompactPrimitiveArray<uint64_t>(array, iStart, abyValidityFromFilters);
     }
-    else if (strcmp(format, "z") == 0 || strcmp(format, "u") == 0)
+    else if (IsString(format) || IsBinary(format))
     {
         CompactStringOrBinaryArray<uint32_t>(array, iStart,
                                              abyValidityFromFilters);
     }
-    else if (strcmp(format, "Z") == 0 || strcmp(format, "U") == 0)
+    else if (IsLargeString(format) || IsLargeBinary(format))
     {
         CompactStringOrBinaryArray<uint64_t>(array, iStart,
                                              abyValidityFromFilters);
     }
-    else if (strncmp(format, "w:", 2) == 0)
+    else if (IsFixedWidthBinary(format))
     {
-        const int nWidth = atoi(format + 2);
+        const int nWidth = GetFixedWithBinary(format);
         CompactFixedWidthArray(array, nWidth, iStart, abyValidityFromFilters);
     }
-    else if (strncmp(format, "d:", 2) == 0)
+    else if (IsDecimal(format))
     {
         int nPrecision = 0;
         int nScale = 0;
@@ -2921,7 +3035,7 @@ BuildMapFieldNameToArrowPath(const struct ArrowSchema *schema,
     {
         auto psChild = schema->children[i];
         anArrowPath.push_back(static_cast<int>(i));
-        if (strcmp(psChild->format, "s+") == 0)
+        if (IsStructure(psChild->format))
         {
             std::string osNewPrefix(osPrefix);
             osNewPrefix += psChild->name;
@@ -3113,7 +3227,7 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                     const struct ArrowArray *array)
 {
     const char *format = schema->format;
-    if (format[0] == 'e')
+    if (IsFloat16(format))
     {
         // half-float
         const auto nFloat16AsUInt16 =
@@ -3124,10 +3238,10 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
         oFeature.SetField(iOGRFieldIndex, f);
     }
 
-    else if (format[0] == 'w' && format[1] == ':')
+    else if (IsFixedWidthBinary(format))
     {
-        // Fixed with binary
-        const int nWidth = atoi(format + 2);
+        // Fixed width binary
+        const int nWidth = GetFixedWithBinary(format);
         oFeature.SetField(iOGRFieldIndex, nWidth,
                           static_cast<const GByte *>(array->buffers[1]) +
                               nOffsettedIndex * nWidth);
@@ -3226,14 +3340,12 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
             1000 * 1000 * 1000, format + strlen("tsn:"), oFeature,
             iOGRFieldIndex);
     }
-    else if (format[0] == '+' && format[1] == 'w' &&
-             format[2] ==
-                 ':')  // STARTS_WITH(format, "+w:")  // Fixed-size list
+    else if (IsFixedSizeList(format))
     {
-        const int nItems = atoi(format + strlen("+w:"));
+        const int nItems = GetFixedSizeList(format);
         const auto childArray = array->children[0];
         const char *childFormat = schema->children[0]->format;
-        if (childFormat[0] == 'b')  // Boolean
+        if (IsBoolean(childFormat))
         {
             std::vector<int> aValues;
             const auto *paValues =
@@ -3250,55 +3362,55 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
             oFeature.SetField(iOGRFieldIndex, static_cast<int>(aValues.size()),
                               aValues.data());
         }
-        else if (childFormat[0] == 'c')  // Int8
+        else if (IsInt8(childFormat))
         {
             FillFieldFixedSizeList<int8_t, int>(array, iOGRFieldIndex,
                                                 nOffsettedIndex, nItems,
                                                 childArray, oFeature);
         }
-        else if (childFormat[0] == 'C')  // UInt8
+        else if (IsUInt8(childFormat))
         {
             FillFieldFixedSizeList<uint8_t, int>(array, iOGRFieldIndex,
                                                  nOffsettedIndex, nItems,
                                                  childArray, oFeature);
         }
-        else if (childFormat[0] == 's')  // Int16
+        else if (IsInt16(childFormat))
         {
             FillFieldFixedSizeList<int16_t, int>(array, iOGRFieldIndex,
                                                  nOffsettedIndex, nItems,
                                                  childArray, oFeature);
         }
-        else if (childFormat[0] == 'S')  // UInt16
+        else if (IsUInt16(childFormat))
         {
             FillFieldFixedSizeList<uint16_t, int>(array, iOGRFieldIndex,
                                                   nOffsettedIndex, nItems,
                                                   childArray, oFeature);
         }
-        else if (childFormat[0] == 'i')  // Int32
+        else if (IsInt32(childFormat))
         {
             FillFieldFixedSizeList<int32_t, int>(array, iOGRFieldIndex,
                                                  nOffsettedIndex, nItems,
                                                  childArray, oFeature);
         }
-        else if (childFormat[0] == 'I')  // UInt32
+        else if (IsUInt32(childFormat))
         {
             FillFieldFixedSizeList<uint32_t, GIntBig>(array, iOGRFieldIndex,
                                                       nOffsettedIndex, nItems,
                                                       childArray, oFeature);
         }
-        else if (childFormat[0] == 'l')  // Int64
+        else if (IsInt64(childFormat))
         {
             FillFieldFixedSizeList<int64_t, GIntBig>(array, iOGRFieldIndex,
                                                      nOffsettedIndex, nItems,
                                                      childArray, oFeature);
         }
-        else if (childFormat[0] == 'L')  // UInt64 (lossy conversion)
+        else if (IsUInt64(childFormat))
         {
             FillFieldFixedSizeList<uint64_t, double>(array, iOGRFieldIndex,
                                                      nOffsettedIndex, nItems,
                                                      childArray, oFeature);
         }
-        else if (childFormat[0] == 'e')  // float16
+        else if (IsFloat16(childFormat))
         {
             std::vector<double> aValues;
             const auto *paValues =
@@ -3315,39 +3427,38 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
             oFeature.SetField(iOGRFieldIndex, static_cast<int>(aValues.size()),
                               aValues.data());
         }
-        else if (childFormat[0] == 'f')  // float32
+        else if (IsFloat32(childFormat))
         {
             FillFieldFixedSizeList<float, double>(array, iOGRFieldIndex,
                                                   nOffsettedIndex, nItems,
                                                   childArray, oFeature);
         }
-        else if (childFormat[0] == 'g')  // float64
+        else if (IsFloat64(childFormat))
         {
             FillFieldFixedSizeList<double, double>(array, iOGRFieldIndex,
                                                    nOffsettedIndex, nItems,
                                                    childArray, oFeature);
         }
-        else if (childFormat[0] == 'u')  // string
+        else if (IsString(childFormat))
         {
             FillFieldFixedSizeListString<uint32_t>(array, iOGRFieldIndex,
                                                    nOffsettedIndex, nItems,
                                                    childArray, oFeature);
         }
-        else if (childFormat[0] == 'U')  // large string
+        else if (IsLargeString(childFormat))
         {
             FillFieldFixedSizeListString<uint64_t>(array, iOGRFieldIndex,
                                                    nOffsettedIndex, nItems,
                                                    childArray, oFeature);
         }
     }
-    else if (format[0] == '+' &&
-             (format[1] == 'l' || format[1] == 'L'))  // List
+    else if (IsList(format) || IsLargeList(format))
     {
         const auto childArray = array->children[0];
         const char *childFormat = schema->children[0]->format;
-        if (childFormat[0] == 'b')  // Boolean
+        if (IsBoolean(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldListFromBool<uint32_t>(array, iOGRFieldIndex,
                                                 nOffsettedIndex, childArray,
                                                 oFeature);
@@ -3356,9 +3467,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                 nOffsettedIndex, childArray,
                                                 oFeature);
         }
-        else if (childFormat[0] == 'c')  // Int8
+        else if (IsInt8(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldList<uint32_t, int8_t, int>(array, iOGRFieldIndex,
                                                      nOffsettedIndex,
                                                      childArray, oFeature);
@@ -3367,9 +3478,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                      nOffsettedIndex,
                                                      childArray, oFeature);
         }
-        else if (childFormat[0] == 'C')  // UInt8
+        else if (IsUInt8(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldList<uint32_t, uint8_t, int>(array, iOGRFieldIndex,
                                                       nOffsettedIndex,
                                                       childArray, oFeature);
@@ -3378,9 +3489,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                       nOffsettedIndex,
                                                       childArray, oFeature);
         }
-        else if (childFormat[0] == 's')  // Int16
+        else if (IsInt16(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldList<uint32_t, int16_t, int>(array, iOGRFieldIndex,
                                                       nOffsettedIndex,
                                                       childArray, oFeature);
@@ -3389,9 +3500,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                       nOffsettedIndex,
                                                       childArray, oFeature);
         }
-        else if (childFormat[0] == 'S')  // UInt16
+        else if (IsUInt16(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldList<uint32_t, uint16_t, int>(array, iOGRFieldIndex,
                                                        nOffsettedIndex,
                                                        childArray, oFeature);
@@ -3400,9 +3511,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                        nOffsettedIndex,
                                                        childArray, oFeature);
         }
-        else if (childFormat[0] == 'i')  // Int32
+        else if (IsInt32(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldList<uint32_t, int32_t, int>(array, iOGRFieldIndex,
                                                       nOffsettedIndex,
                                                       childArray, oFeature);
@@ -3411,9 +3522,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                       nOffsettedIndex,
                                                       childArray, oFeature);
         }
-        else if (childFormat[0] == 'I')  // UInt32
+        else if (IsUInt32(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldList<uint32_t, uint32_t, GIntBig>(
                     array, iOGRFieldIndex, nOffsettedIndex, childArray,
                     oFeature);
@@ -3422,9 +3533,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                     array, iOGRFieldIndex, nOffsettedIndex, childArray,
                     oFeature);
         }
-        else if (childFormat[0] == 'l')  // Int64
+        else if (IsInt64(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldList<uint32_t, int64_t, GIntBig>(array, iOGRFieldIndex,
                                                           nOffsettedIndex,
                                                           childArray, oFeature);
@@ -3433,9 +3544,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                           nOffsettedIndex,
                                                           childArray, oFeature);
         }
-        else if (childFormat[0] == 'L')  // UInt64 (lossy conversion)
+        else if (IsUInt64(childFormat))  // (lossy conversion)
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldList<uint32_t, uint64_t, double>(array, iOGRFieldIndex,
                                                           nOffsettedIndex,
                                                           childArray, oFeature);
@@ -3444,9 +3555,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                           nOffsettedIndex,
                                                           childArray, oFeature);
         }
-        else if (childFormat[0] == 'e')  // float16
+        else if (IsFloat16(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldListFromHalfFloat<uint32_t>(array, iOGRFieldIndex,
                                                      nOffsettedIndex,
                                                      childArray, oFeature);
@@ -3455,9 +3566,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                      nOffsettedIndex,
                                                      childArray, oFeature);
         }
-        else if (childFormat[0] == 'f')  // float32
+        else if (IsFloat32(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldList<uint32_t, float, double>(array, iOGRFieldIndex,
                                                        nOffsettedIndex,
                                                        childArray, oFeature);
@@ -3466,9 +3577,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                        nOffsettedIndex,
                                                        childArray, oFeature);
         }
-        else if (childFormat[0] == 'g')  // float64
+        else if (IsFloat64(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldList<uint32_t, double, double>(array, iOGRFieldIndex,
                                                         nOffsettedIndex,
                                                         childArray, oFeature);
@@ -3477,9 +3588,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                                                         nOffsettedIndex,
                                                         childArray, oFeature);
         }
-        else if (childFormat[0] == 'u')  // string
+        else if (IsString(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldListFromString<uint32_t, uint32_t>(
                     array, iOGRFieldIndex, nOffsettedIndex, childArray,
                     oFeature);
@@ -3488,9 +3599,9 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                     array, iOGRFieldIndex, nOffsettedIndex, childArray,
                     oFeature);
         }
-        else if (childFormat[0] == 'U')  // large string
+        else if (IsLargeString(childFormat))
         {
-            if (format[1] == 'l')
+            if (format[1] == ARROW_2ND_LETTER_LIST)
                 FillFieldListFromString<uint32_t, uint64_t>(
                     array, iOGRFieldIndex, nOffsettedIndex, childArray,
                     oFeature);
@@ -3500,7 +3611,7 @@ static bool SetFieldForOtherFormats(OGRFeature &oFeature,
                     oFeature);
         }
     }
-    else if (format[0] == 'd' && format[1] == ':')
+    else if (IsDecimal(format))
     {
         int nPrecision = 0;
         int nScale = 0;
@@ -3704,12 +3815,12 @@ static size_t FillValidityArrayFromAttrQuery(
                 {
                     // do nothing
                 }
-                else if (format[0] == 'i')
+                else if (IsInt32(format))
                 {
                     oFeature.SetFID(static_cast<const int32_t *>(
                         psArray->buffers[1])[nOffsettedIndex]);
                 }
-                else if (format[0] == 'l')
+                else if (IsInt64(format))
                 {
                     oFeature.SetFID(static_cast<const int64_t *>(
                         psArray->buffers[1])[nOffsettedIndex]);
@@ -3761,90 +3872,78 @@ static size_t FillValidityArrayFromAttrQuery(
             {
                 oFeature.SetFieldNull(iOGRFieldIndex);
             }
-            else if (format[0] == 'b' && format[1] == '\0')
+            else if (IsBoolean(format))
             {
-                // Boolean
                 oFeature.SetField(
                     iOGRFieldIndex,
                     TestBit(static_cast<const uint8_t *>(psArray->buffers[1]),
                             nOffsettedIndex));
             }
-            else if (format[0] == 'c' && format[1] == '\0')
+            else if (IsInt8(format))
             {
-                // signed int8
                 oFeature.SetField(iOGRFieldIndex,
                                   static_cast<const int8_t *>(
                                       psArray->buffers[1])[nOffsettedIndex]);
             }
-            else if (format[0] == 'C' && format[1] == '\0')
+            else if (IsUInt8(format))
             {
-                // unsigned int8
                 oFeature.SetField(iOGRFieldIndex,
                                   static_cast<const uint8_t *>(
                                       psArray->buffers[1])[nOffsettedIndex]);
             }
-            else if (format[0] == 's' && format[1] == '\0')
+            else if (IsInt16(format))
             {
-                // signed int16
                 oFeature.SetField(iOGRFieldIndex,
                                   static_cast<const int16_t *>(
                                       psArray->buffers[1])[nOffsettedIndex]);
             }
-            else if (format[0] == 'S' && format[1] == '\0')
+            else if (IsUInt16(format))
             {
-                // unsigned int16
                 oFeature.SetField(iOGRFieldIndex,
                                   static_cast<const uint16_t *>(
                                       psArray->buffers[1])[nOffsettedIndex]);
             }
-            else if (format[0] == 'i' && format[1] == '\0')
+            else if (IsInt32(format))
             {
-                // signed int32
                 oFeature.SetField(iOGRFieldIndex,
                                   static_cast<const int32_t *>(
                                       psArray->buffers[1])[nOffsettedIndex]);
             }
-            else if (format[0] == 'I' && format[1] == '\0')
+            else if (IsUInt32(format))
             {
-                // unsigned int32
                 oFeature.SetField(
                     iOGRFieldIndex,
                     static_cast<GIntBig>(static_cast<const uint32_t *>(
                         psArray->buffers[1])[nOffsettedIndex]));
             }
-            else if (format[0] == 'l' && format[1] == '\0')
+            else if (IsInt64(format))
             {
-                // signed int64
                 oFeature.SetField(
                     iOGRFieldIndex,
                     static_cast<GIntBig>(static_cast<const int64_t *>(
                         psArray->buffers[1])[nOffsettedIndex]));
             }
-            else if (format[0] == 'L' && format[1] == '\0')
+            else if (IsUInt64(format))
             {
-                // unsigned int64
                 oFeature.SetField(
                     iOGRFieldIndex,
                     static_cast<double>(static_cast<const uint64_t *>(
                         psArray->buffers[1])[nOffsettedIndex]));
             }
-            else if (format[0] == 'f' && format[1] == '\0')
+            else if (IsFloat32(format))
             {
-                // float32
                 oFeature.SetField(iOGRFieldIndex,
                                   static_cast<const float *>(
                                       psArray->buffers[1])[nOffsettedIndex]);
             }
-            else if (format[0] == 'g' && format[1] == '\0')
+            else if (IsFloat64(format))
             {
-                // float64
                 oFeature.SetField(iOGRFieldIndex,
                                   static_cast<const double *>(
                                       psArray->buffers[1])[nOffsettedIndex]);
             }
-            else if (format[0] == 'u' && format[1] == '\0')
+            else if (IsString(format))
             {
-                // UTF-8 string
                 const auto nOffset = static_cast<const uint32_t *>(
                     psArray->buffers[1])[nOffsettedIndex];
                 const auto nNextOffset = static_cast<const uint32_t *>(
@@ -3857,9 +3956,8 @@ static size_t FillValidityArrayFromAttrQuery(
                 pszStr[nSize] = 0;
                 oFeature.SetFieldSameTypeUnsafe(iOGRFieldIndex, pszStr);
             }
-            else if (format[0] == 'U' && format[1] == '\0')
+            else if (IsLargeString(format))
             {
-                // Large UTF-8 string
                 const auto nOffset = static_cast<const uint64_t *>(
                     psArray->buffers[1])[nOffsettedIndex];
                 const auto nNextOffset = static_cast<const uint64_t *>(
@@ -3883,9 +3981,8 @@ static size_t FillValidityArrayFromAttrQuery(
                 pszStr[nSize] = 0;
                 oFeature.SetFieldSameTypeUnsafe(iOGRFieldIndex, pszStr);
             }
-            else if (format[0] == 'z' && format[1] == '\0')
+            else if (IsBinary(format))
             {
-                // Binary
                 const auto nOffset = static_cast<const uint32_t *>(
                     psArray->buffers[1])[nOffsettedIndex];
                 const auto nNextOffset = static_cast<const uint32_t *>(
@@ -3906,9 +4003,8 @@ static size_t FillValidityArrayFromAttrQuery(
                 oFeature.SetField(iOGRFieldIndex, static_cast<int>(nSize),
                                   pabyData + nOffset);
             }
-            else if (format[0] == 'Z' && format[1] == '\0')
+            else if (IsLargeBinary(format))
             {
-                // Large binary
                 const auto nOffset = static_cast<const uint64_t *>(
                     psArray->buffers[1])[nOffsettedIndex];
                 const auto nNextOffset = static_cast<const uint64_t *>(
@@ -3993,15 +4089,15 @@ void OGRLayer::PostFilterArrowArray(const struct ArrowSchema *schema,
         }
         // Guaranteed if CanPostFilterArrowArray() returned true
         CPLAssert(iGeomField >= 0);
-        CPLAssert(strcmp(schema->children[iGeomField]->format, "z") == 0 ||
-                  strcmp(schema->children[iGeomField]->format, "Z") == 0);
+        CPLAssert(IsBinary(schema->children[iGeomField]->format) ||
+                  IsLargeBinary(schema->children[iGeomField]->format));
         CPLAssert(array->children[iGeomField]->n_buffers == 3);
     }
 
     std::vector<bool> abyValidityFromFilters;
     const size_t nLength = static_cast<size_t>(array->length);
     const size_t nCountIntersectingGeom =
-        m_poFilterGeom ? (strcmp(schema->children[iGeomField]->format, "z") == 0
+        m_poFilterGeom ? (IsBinary(schema->children[iGeomField]->format)
                               ? FillValidityArrayFromWKBArray<uint32_t>(
                                     array->children[iGeomField], this,
                                     abyValidityFromFilters)
@@ -4075,31 +4171,37 @@ const struct
 
 const struct
 {
-    const char *arrowType;
+    const char arrowLetter;
     OGRFieldType eType;
     OGRFieldSubType eSubType;
 } gasListTypes[] = {
-    {"b", OFTIntegerList, OFSTBoolean},
-    {"c", OFTIntegerList, OFSTInt16},   // Int8
-    {"C", OFTIntegerList, OFSTInt16},   // UInt8
-    {"s", OFTIntegerList, OFSTInt16},   // Int16
-    {"S", OFTIntegerList, OFSTNone},    // UInt16
-    {"i", OFTIntegerList, OFSTNone},    // Int32
-    {"I", OFTInteger64List, OFSTNone},  // UInt32
-    {"l", OFTInteger64List, OFSTNone},  // Int64
-    {"L", OFTRealList, OFSTNone},  // UInt64 (potentially lossy conversion if going through OGRFeature)
-    {"e", OFTRealList, OFSTFloat32},  // float16
-    {"f", OFTRealList, OFSTFloat32},  // float32
-    {"g", OFTRealList, OFSTNone},     // float64
-    {"u", OFTStringList, OFSTNone},   // string
-    {"U", OFTStringList, OFSTNone},   // large string
+    {ARROW_LETTER_BOOLEAN, OFTIntegerList, OFSTBoolean},
+    {ARROW_LETTER_INT8, OFTIntegerList, OFSTInt16},
+    {ARROW_LETTER_UINT8, OFTIntegerList, OFSTInt16},
+    {ARROW_LETTER_INT16, OFTIntegerList, OFSTInt16},
+    {ARROW_LETTER_UINT16, OFTIntegerList, OFSTNone},
+    {ARROW_LETTER_INT32, OFTIntegerList, OFSTNone},
+    {ARROW_LETTER_UINT32, OFTInteger64List, OFSTNone},
+    {ARROW_LETTER_INT64, OFTInteger64List, OFSTNone},
+    {ARROW_LETTER_UINT64, OFTRealList,
+     OFSTNone},  //(potentially lossy conversion if going through OGRFeature)
+    {ARROW_LETTER_FLOAT16, OFTRealList, OFSTFloat32},
+    {ARROW_LETTER_FLOAT32, OFTRealList, OFSTFloat32},
+    {ARROW_LETTER_FLOAT64, OFTRealList, OFSTNone},
+    {ARROW_LETTER_STRING, OFTStringList, OFSTNone},
+    {ARROW_LETTER_LARGE_STRING, OFTStringList, OFSTNone},
 };
 
 static inline bool IsValidDictionaryIndexType(const char *format)
 {
-    return format[0] == 'c' || format[0] == 'C' || format[0] == 's' ||
-           format[0] == 'S' || format[0] == 'i' || format[0] == 'I' ||
-           format[0] == 'l' || format[0] == 'L';
+    return (format[0] == ARROW_LETTER_INT8 || format[0] == ARROW_LETTER_UINT8 ||
+            format[0] == ARROW_LETTER_INT16 ||
+            format[0] == ARROW_LETTER_UINT16 ||
+            format[0] == ARROW_LETTER_INT32 ||
+            format[0] == ARROW_LETTER_UINT32 ||
+            format[0] == ARROW_LETTER_INT64 ||
+            format[0] == ARROW_LETTER_UINT64) &&
+           format[1] == 0;
 }
 
 /** Returns whether the provided ArrowSchema is supported for writing.
@@ -4120,7 +4222,7 @@ static inline bool IsValidDictionaryIndexType(const char *format)
 bool OGRLayer::IsArrowSchemaSupported(const struct ArrowSchema *schema,
                                       std::string &osErrorMsg) const
 {
-    if (strcmp(schema->format, "+s") != 0)
+    if (!IsStructure(schema->format))
     {
         osErrorMsg =
             "IsArrowSchemaSupported() should be called on a schema that is a "
@@ -4144,7 +4246,7 @@ bool OGRLayer::IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
 
     const char *fieldName = schema->name;
     const char *format = schema->format;
-    if (strcmp(format, "+s") == 0)
+    if (IsStructure(format))
     {
         bool bRet = true;
         const std::string osNewPrefix(osFieldPrefix + fieldName + ".");
@@ -4170,21 +4272,19 @@ bool OGRLayer::IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
         format = schema->format;
     }
 
-    if (strcmp(format, "+l") == 0 ||  // list
-        strcmp(format, "+L") == 0 ||  // large list
-        STARTS_WITH(format, "+w:"))   // fixed-size list
+    if (IsList(format) || IsLargeList(format) || IsFixedSizeList(format))
     {
         // Only some subtypes supported
         const char *childFormat = schema->children[0]->format;
         for (const auto &sType : gasListTypes)
         {
-            if (strcmp(childFormat, sType.arrowType) == 0)
+            if (childFormat[0] == sType.arrowLetter && childFormat[1] == 0)
             {
                 return true;
             }
         }
 
-        if (STARTS_WITH(childFormat, "d:"))  // decimal
+        if (IsDecimal(childFormat))
         {
             int nPrecision = 0;
             int nScale = 0;
@@ -4220,13 +4320,13 @@ bool OGRLayer::IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
         return false;
     }
 
-    else if (strcmp(format, "+m") == 0)
+    else if (IsMap(format))
     {
         AppendError("Type map for field " + osFieldPrefix + fieldName +
                     " is not supported.");
         return false;
     }
-    else if (STARTS_WITH(format, "d:"))  // decimal
+    else if (IsDecimal(format))
     {
         int nPrecision = 0;
         int nScale = 0;
@@ -4340,7 +4440,7 @@ bool OGRLayer::CreateFieldFromArrowSchemaInternal(
 {
     const char *fieldName = schema->name;
     const char *format = schema->format;
-    if (strcmp(format, "+s") == 0)
+    if (IsStructure(format))
     {
         const std::string osNewPrefix(osFieldPrefix + fieldName + ".");
         for (int64_t i = 0; i < schema->n_children; ++i)
@@ -4389,22 +4489,20 @@ bool OGRLayer::CreateFieldFromArrowSchemaInternal(
         return CreateField(&oFieldDefn) == OGRERR_NONE;
     }
 
-    if (STARTS_WITH(format, "w:"))  // fixed-width binary
+    if (IsFixedWidthBinary(format))
     {
         OGRFieldDefn oFieldDefn((osFieldPrefix + fieldName).c_str(), OFTBinary);
-        oFieldDefn.SetWidth(atoi(format + strlen("w:")));
+        oFieldDefn.SetWidth(GetFixedWithBinary(format));
         oFieldDefn.SetNullable((schema->flags & ARROW_FLAG_NULLABLE) != 0);
         return CreateField(&oFieldDefn) == OGRERR_NONE;
     }
 
-    if (strcmp(format, "+l") == 0 ||  // list
-        strcmp(format, "+L") == 0 ||  // large list
-        STARTS_WITH(format, "+w:"))   // fixed-size list
+    if (IsList(format) || IsLargeList(format) || IsFixedSizeList(format))
     {
         const char *childFormat = schema->children[0]->format;
         for (const auto &sType : gasListTypes)
         {
-            if (strcmp(childFormat, sType.arrowType) == 0)
+            if (childFormat[0] == sType.arrowLetter && childFormat[1] == 0)
             {
                 OGRFieldDefn oFieldDefn((osFieldPrefix + fieldName).c_str(),
                                         sType.eType);
@@ -4415,7 +4513,7 @@ bool OGRLayer::CreateFieldFromArrowSchemaInternal(
             }
         }
 
-        if (STARTS_WITH(childFormat, "d:"))  // Decimal
+        if (IsDecimal(childFormat))
         {
             int nPrecision = 0;
             int nScale = 0;
@@ -4463,7 +4561,7 @@ bool OGRLayer::CreateFieldFromArrowSchemaInternal(
         return false;
     }
 
-    if (STARTS_WITH(format, "d:"))  // Decimal
+    if (IsDecimal(format))
     {
         int nPrecision = 0;
         int nScale = 0;
@@ -4597,7 +4695,7 @@ static bool BuildOGRFieldInfo(
 {
     const char *fieldName = schema->name;
     const char *format = schema->format;
-    if (strcmp(format, "+s") == 0)
+    if (IsStructure(format))
     {
         const std::string osNewPrefix(osFieldPrefix + fieldName + ".");
         for (int64_t i = 0; i < schema->n_children; ++i)
@@ -4632,7 +4730,7 @@ static bool BuildOGRFieldInfo(
     sInfo.osName = osFieldPrefix + fieldName;
     if (pszFIDName && sInfo.osName == pszFIDName)
     {
-        if (format[0] == 'i' || format[0] == 'l')
+        if (IsInt32(format) || IsInt64(format))
         {
             sInfo.iOGRFieldIdx = FID_COLUMN_SPECIAL_OGR_FIELD_IDX;
             schemaFIDColumn = schema;
@@ -4698,7 +4796,7 @@ static bool BuildOGRFieldInfo(
                 }
             }
 
-            if (!bTypeOK && STARTS_WITH(format, "w:"))
+            if (!bTypeOK && IsFixedWidthBinary(format))
             {
                 if (eOGRType == OFTBinary)
                 {
@@ -4716,14 +4814,14 @@ static bool BuildOGRFieldInfo(
                 }
             }
 
-            if (!bTypeOK &&
-                (strcmp(format, "+l") == 0 || strcmp(format, "+L") == 0 ||
-                 STARTS_WITH(format, "+w:")))
+            if (!bTypeOK && (IsList(format) || IsLargeList(format) ||
+                             IsFixedSizeList(format)))
             {
                 const char *childFormat = schema->children[0]->format;
                 for (const auto &sType : gasListTypes)
                 {
-                    if (strcmp(childFormat, sType.arrowType) == 0)
+                    if (childFormat[0] == sType.arrowLetter &&
+                        childFormat[1] == 0)
                     {
                         if (eOGRType == sType.eType)
                         {
@@ -4744,7 +4842,7 @@ static bool BuildOGRFieldInfo(
                     }
                 }
 
-                if (!bTypeOK && STARTS_WITH(childFormat, "d:"))
+                if (!bTypeOK && IsDecimal(childFormat))
                 {
                     if (!ParseDecimalFormat(childFormat, sInfo.nPrecision,
                                             sInfo.nScale, sInfo.nWidthInBytes))
@@ -4804,7 +4902,7 @@ static bool BuildOGRFieldInfo(
                 }
             }
 
-            if (!bTypeOK && STARTS_WITH(format, "d:"))
+            if (!bTypeOK && IsDecimal(format))
             {
                 if (!ParseDecimalFormat(format, sInfo.nPrecision, sInfo.nScale,
                                         sInfo.nWidthInBytes))
@@ -4911,8 +5009,7 @@ static bool BuildOGRFieldInfo(
                 }
             }
 
-            if (strcmp(schema->format, "z") != 0 &&
-                strcmp(schema->format, "Z") != 0)
+            if (!IsBinary(format) && !IsLargeBinary(format))
             {
                 CPLError(CE_Failure, CPLE_AppDefined,
                          "Geometry column '%s' should be of Arrow format "
@@ -4937,30 +5034,31 @@ static inline uint64_t GetUInt64Value(const struct ArrowSchema *schema,
                                       size_t iFeature)
 {
     uint64_t nVal = 0;
+    CPLAssert(schema->format[1] == 0);
     switch (schema->format[0])
     {
-        case 'c':
+        case ARROW_LETTER_INT8:
             nVal = GetValue<int8_t>(array, iFeature);
             break;
-        case 'C':
+        case ARROW_LETTER_UINT8:
             nVal = GetValue<uint8_t>(array, iFeature);
             break;
-        case 's':
+        case ARROW_LETTER_INT16:
             nVal = GetValue<int16_t>(array, iFeature);
             break;
-        case 'S':
+        case ARROW_LETTER_UINT16:
             nVal = GetValue<uint16_t>(array, iFeature);
             break;
-        case 'i':
+        case ARROW_LETTER_INT32:
             nVal = GetValue<int32_t>(array, iFeature);
             break;
-        case 'I':
+        case ARROW_LETTER_UINT32:
             nVal = GetValue<uint32_t>(array, iFeature);
             break;
-        case 'l':
+        case ARROW_LETTER_INT64:
             nVal = GetValue<int64_t>(array, iFeature);
             break;
-        case 'L':
+        case ARROW_LETTER_UINT64:
             nVal = GetValue<uint64_t>(array, iFeature);
             break;
         default:
@@ -4981,7 +5079,7 @@ static size_t GetWorkingBufferSize(const struct ArrowSchema *schema,
 {
     const char *fieldName = schema->name;
     const char *format = schema->format;
-    if (format[0] == '+' && format[1] == 's')
+    if (IsStructure(format))
     {
         size_t nRet = 0;
         for (int64_t i = 0; i < schema->n_children; ++i)
@@ -4994,11 +5092,12 @@ static size_t GetWorkingBufferSize(const struct ArrowSchema *schema,
 
     if (schema->dictionary)
     {
-        if (schema->dictionary->format[0] != 'u' &&
-            schema->dictionary->format[0] != 'U')
+        if (schema->dictionary->format[0] != ARROW_LETTER_STRING &&
+            schema->dictionary->format[0] != ARROW_LETTER_LARGE_STRING)
             return 0;
     }
-    else if (format[0] != 'u' && format[0] != 'U')
+    else if (format[0] != ARROW_LETTER_STRING &&
+             format[0] != ARROW_LETTER_LARGE_STRING)
         return 0;
 
     const uint8_t *pabyValidity =
@@ -5029,13 +5128,13 @@ static size_t GetWorkingBufferSize(const struct ArrowSchema *schema,
         iFeature = static_cast<size_t>(nDictIdx);
     }
 
-    if (format[0] == 'u')  // UTF-8
+    if (format[0] == ARROW_LETTER_STRING)
     {
         const auto *panOffsets =
             static_cast<const uint32_t *>(array->buffers[1]) + array->offset;
         return 1 + (panOffsets[iFeature + 1] - panOffsets[iFeature]);
     }
-    else if (format[0] == 'U')  // large UTF-8
+    else if (format[0] == ARROW_LETTER_LARGE_STRING)
     {
         const auto *panOffsets =
             static_cast<const uint64_t *>(array->buffers[1]) + array->offset;
@@ -5133,7 +5232,7 @@ static bool FillFeature(OGRLayer *poLayer, const struct ArrowSchema *schema,
 {
     const char *fieldName = schema->name;
     const char *format = schema->format;
-    if (format[0] == '+' && format[1] == 's')
+    if (IsStructure(format))
     {
         const std::string osNewPrefix(osFieldPrefix + fieldName + ".");
         for (int64_t i = 0; i < schema->n_children; ++i)
@@ -5210,7 +5309,7 @@ static bool FillFeature(OGRLayer *poLayer, const struct ArrowSchema *schema,
         iFeature = static_cast<size_t>(nDictIdx);
     }
 
-    if (format[0] == 'b')  // Boolean
+    if (IsBoolean(format))
     {
         const uint8_t *pabyValues =
             static_cast<const uint8_t *>(array->buffers[1]);
@@ -5221,27 +5320,27 @@ static bool FillFeature(OGRLayer *poLayer, const struct ArrowSchema *schema,
                 : 0);
         return true;
     }
-    else if (format[0] == 'c')  // Int8
+    else if (IsInt8(format))
     {
         FillField<int8_t>(array, iOGRFieldIdx, iFeature, oFeature);
         return true;
     }
-    else if (format[0] == 'C')  // UInt8
+    else if (IsUInt8(format))
     {
         FillField<uint8_t>(array, iOGRFieldIdx, iFeature, oFeature);
         return true;
     }
-    else if (format[0] == 's')  // Int16
+    else if (IsInt16(format))
     {
         FillField<int16_t>(array, iOGRFieldIdx, iFeature, oFeature);
         return true;
     }
-    else if (format[0] == 'S')  // UInt16
+    else if (IsUInt16(format))
     {
         FillField<uint16_t>(array, iOGRFieldIdx, iFeature, oFeature);
         return true;
     }
-    else if (format[0] == 'i')  // Int32
+    else if (IsInt32(format))
     {
         if (iOGRFieldIdx == FID_COLUMN_SPECIAL_OGR_FIELD_IDX)
         {
@@ -5255,12 +5354,12 @@ static bool FillFeature(OGRLayer *poLayer, const struct ArrowSchema *schema,
         }
         return true;
     }
-    else if (format[0] == 'I')  // UInt32
+    else if (IsUInt32(format))
     {
         FillField<uint32_t, GIntBig>(array, iOGRFieldIdx, iFeature, oFeature);
         return true;
     }
-    else if (format[0] == 'l')  // Int64
+    else if (IsInt64(format))
     {
         if (iOGRFieldIdx == FID_COLUMN_SPECIAL_OGR_FIELD_IDX)
         {
@@ -5275,40 +5374,40 @@ static bool FillFeature(OGRLayer *poLayer, const struct ArrowSchema *schema,
         }
         return true;
     }
-    else if (format[0] == 'L')  // UInt64
+    else if (IsUInt64(format))
     {
         FillField<uint64_t, double>(array, iOGRFieldIdx, iFeature, oFeature);
         return true;
     }
-    else if (format[0] == 'f')  // float32
+    else if (IsFloat32(format))
     {
         FillField<float>(array, iOGRFieldIdx, iFeature, oFeature);
         return true;
     }
-    else if (format[0] == 'g')  // float64
+    else if (IsFloat64(format))
     {
         FillField<double>(array, iOGRFieldIdx, iFeature, oFeature);
         return true;
     }
-    else if (format[0] == 'u')  // UTF-8
+    else if (IsString(format))
     {
         FillFieldString<uint32_t>(array, iOGRFieldIdx, iFeature,
                                   osWorkingBuffer, oFeature);
         return true;
     }
-    else if (format[0] == 'U')  // large UTF-8
+    else if (IsLargeString(format))
     {
         FillFieldString<uint64_t>(array, iOGRFieldIdx, iFeature,
                                   osWorkingBuffer, oFeature);
         return true;
     }
-    else if (format[0] == 'z')  // Binary
+    else if (IsBinary(format))
     {
         return FillFieldBinary<uint32_t>(array, iOGRFieldIdx, iFeature,
                                          iArrowIdx, asFieldInfo, osFieldPrefix,
                                          fieldName, oFeature);
     }
-    else if (format[0] == 'Z')  // large binary
+    else if (IsLargeBinary(format))
     {
         return FillFieldBinary<uint64_t>(array, iOGRFieldIdx, iFeature,
                                          iArrowIdx, asFieldInfo, osFieldPrefix,
@@ -5322,7 +5421,7 @@ static bool FillFeature(OGRLayer *poLayer, const struct ArrowSchema *schema,
         CPLAssert((asFieldInfo[iArrowIdx].nWidthInBytes % 8) == 0);
         const int nWidthIn64BitWord = asFieldInfo[iArrowIdx].nWidthInBytes / 8;
 
-        if (format[0] == '+' && format[1] == 'l')
+        if (IsList(format))
         {
             const auto panOffsets =
                 static_cast<const uint32_t *>(array->buffers[1]) +
@@ -5350,7 +5449,7 @@ static bool FillFeature(OGRLayer *poLayer, const struct ArrowSchema *schema,
                               aValues.data());
             return true;
         }
-        else if (format[0] == '+' && format[1] == 'L')
+        else if (IsLargeList(format))
         {
             const auto panOffsets =
                 static_cast<const uint64_t *>(array->buffers[1]) +
@@ -5378,9 +5477,9 @@ static bool FillFeature(OGRLayer *poLayer, const struct ArrowSchema *schema,
                               aValues.data());
             return true;
         }
-        else if (format[0] == '+' && format[1] == 'w' && format[2] == ':')
+        else if (IsFixedSizeList(format))
         {
-            const int nVals = atoi(format + strlen("+w:"));
+            const int nVals = GetFixedSizeList(format);
             const auto childArray = array->children[0];
             const auto *panValues =
                 static_cast<const int64_t *>(childArray->buffers[1]);
@@ -5404,7 +5503,7 @@ static bool FillFeature(OGRLayer *poLayer, const struct ArrowSchema *schema,
             return true;
         }
 
-        CPLAssert(format[0] == 'd');
+        CPLAssert(format[0] == ARROW_LETTER_DECIMAL);
 
 #ifdef CPL_LSB
         const auto nIdx = iFeature * nWidthIn64BitWord;
@@ -5565,7 +5664,7 @@ bool OGRLayer::WriteArrowBatch(const struct ArrowSchema *schema,
                                CSLConstList papszOptions)
 {
     const char *format = schema->format;
-    if (strcmp(format, "+s") != 0)
+    if (!IsStructure(format))
     {
         CPLError(CE_Failure, CPLE_AppDefined,
                  "WriteArrowBatch() should be called on a schema that is a "
@@ -5688,7 +5787,7 @@ bool OGRLayer::WriteArrowBatch(const struct ArrowSchema *schema,
         {
             uint8_t *pabyValidity = static_cast<uint8_t *>(
                 const_cast<void *>(arrayFIDColumn->buffers[0]));
-            if (schemaFIDColumn->format[0] == 'i')  // Int32
+            if (IsInt32(schemaFIDColumn->format))
             {
                 auto *panValues = static_cast<int32_t *>(
                     const_cast<void *>(arrayFIDColumn->buffers[1]));
@@ -5718,7 +5817,7 @@ bool OGRLayer::WriteArrowBatch(const struct ArrowSchema *schema,
                         static_cast<int32_t>(oFeature.GetFID());
                 }
             }
-            else if (schemaFIDColumn->format[0] == 'l')  // Int64
+            else if (IsInt64(schemaFIDColumn->format))
             {
                 if (pabyValidity)
                 {

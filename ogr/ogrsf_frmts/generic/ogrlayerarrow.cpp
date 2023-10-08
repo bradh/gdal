@@ -4694,8 +4694,6 @@ static bool IsSupportForJSONObj(const struct ArrowSchema *schema)
 
 static bool IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
                                            const std::string &osFieldPrefix,
-                                           bool bUseFallbackTypes,
-                                           const CPLStringList &aosNativeTypes,
                                            std::string &osErrorMsg)
 {
     const auto AppendError = [&osErrorMsg](const std::string &osMsg)
@@ -4714,8 +4712,7 @@ static bool IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
         for (int64_t i = 0; i < schema->n_children; ++i)
         {
             if (!IsArrowSchemaSupportedInternal(schema->children[i],
-                                                osNewPrefix, bUseFallbackTypes,
-                                                aosNativeTypes, osErrorMsg))
+                                                osNewPrefix, osErrorMsg))
                 bRet = false;
         }
         return bRet;
@@ -4734,24 +4731,6 @@ static bool IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
         format = schema->format;
     }
 
-    const auto CheckSupportedType = [fieldName, bUseFallbackTypes,
-                                     &osFieldPrefix, &AppendError,
-                                     &aosNativeTypes](OGRFieldType eType)
-    {
-        const char *pszTypeName = OGRFieldDefn::GetFieldTypeName(eType);
-        if (!aosNativeTypes.empty() &&
-            aosNativeTypes.FindString(pszTypeName) < 0 && !bUseFallbackTypes)
-        {
-            AppendError("Field " + osFieldPrefix + fieldName +
-                        " would require using OGR type " + pszTypeName +
-                        " but the driver does not support it. You may set the "
-                        "USE_FALLBACK_TYPES=YES option to allow use of a "
-                        "fallback type");
-            return false;
-        }
-        return true;
-    };
-
     if (IsList(format) || IsLargeList(format) || IsFixedSizeList(format))
     {
         // Only some subtypes supported
@@ -4760,7 +4739,7 @@ static bool IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
         {
             if (childFormat[0] == sType.arrowLetter && childFormat[1] == 0)
             {
-                return CheckSupportedType(sType.eType);
+                return true;
             }
         }
 
@@ -4785,7 +4764,7 @@ static bool IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
                 return false;
             }
 
-            return CheckSupportedType(OFTRealList);
+            return true;
         }
 
         if (IsSupportForJSONObj(schema))
@@ -4827,7 +4806,7 @@ static bool IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
             return false;
         }
 
-        return CheckSupportedType(OFTReal);
+        return true;
     }
     else
     {
@@ -4835,12 +4814,12 @@ static bool IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
         {
             if (strcmp(format, sType.arrowType) == 0)
             {
-                return CheckSupportedType(sType.eType);
+                return true;
             }
         }
 
         if (IsFixedWidthBinary(format))
-            return CheckSupportedType(OFTBinary);
+            return true;
 
         const char *const apszTimestamps[] = {
             "tss:",  // timestamp[s]
@@ -4851,7 +4830,7 @@ static bool IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
         for (const char *pszSupported : apszTimestamps)
         {
             if (STARTS_WITH(format, pszSupported))
-                return CheckSupportedType(OFTDateTime);
+                return true;
         }
 
         AppendError("Type '" + std::string(format) + "' for field " +
@@ -4869,28 +4848,16 @@ static bool IsArrowSchemaSupportedInternal(const struct ArrowSchema *schema,
  *
  * It is recommended to call this method before calling WriteArrowBatch().
  *
- * Supported options of the base implementation are:
- * <ul>
- * <li>USE_FALLBACK_TYPES=YES. This may be set to allow GDAL to fallback to
- *     another OGRFieldType data type (typically String) when the natural OGR
- *     type is not supported in creation by the driver. This implies that the
- *     layer implements GetDataset() to be able to retrieve supported data
- *     types from the driver. This option must be used consistently among
- *     IsArrowSchemaSupported(), CreateFieldFromArrowSchema() and
- *     WriteArrowBatch().
- * </li>
- * </ul>
- *
  * This is the same as the C function OGR_L_IsArrowSchemaSupported().
  *
  * @param schema Schema of type struct (format = '+s')
- * @param papszOptions Options. Null terminated list, or nullptr.
+ * @param papszOptions Options (none currently). Null terminated list, or nullptr.
  * @param[out] osErrorMsg Reason of the failure, when this method returns false.
  * @return true if the ArrowSchema is supported for writing.
  * @since 3.8
  */
 bool OGRLayer::IsArrowSchemaSupported(const struct ArrowSchema *schema,
-                                      CSLConstList papszOptions,
+                                      CPL_UNUSED CSLConstList papszOptions,
                                       std::string &osErrorMsg) const
 {
     if (!IsStructure(schema->format))
@@ -4901,24 +4868,10 @@ bool OGRLayer::IsArrowSchemaSupported(const struct ArrowSchema *schema,
         return false;
     }
 
-    const bool bUseFallbackTypes = CPLTestBool(
-        CSLFetchNameValueDef(papszOptions, "USE_FALLBACK_TYPES", "NO"));
-    CPLStringList aosNativeTypes;
-    auto poDS = const_cast<OGRLayer *>(this)->GetDataset();
-    if (poDS)
-    {
-        auto poDriver = poDS->GetDriver();
-        const char *pszMetadataItem =
-            poDriver->GetMetadataItem(GDAL_DMD_CREATIONFIELDDATATYPES);
-        if (pszMetadataItem)
-            aosNativeTypes = CSLTokenizeString2(pszMetadataItem, " ", 0);
-    }
-
     bool bRet = true;
     for (int64_t i = 0; i < schema->n_children; ++i)
     {
         if (!IsArrowSchemaSupportedInternal(schema->children[i], std::string(),
-                                            bUseFallbackTypes, aosNativeTypes,
                                             osErrorMsg))
             bRet = false;
     }
@@ -4937,23 +4890,11 @@ bool OGRLayer::IsArrowSchemaSupported(const struct ArrowSchema *schema,
  *
  * It is recommended to call this function before calling OGR_L_WriteArrowBatch().
  *
- * Supported options of the base implementation are:
- * <ul>
- * <li>USE_FALLBACK_TYPES=YES. This may be set to allow GDAL to fallback to
- *     another OGRFieldType data type (typically String) when the natural OGR
- *     type is not supported in creation by the driver. This implies that the
- *     layer implements GetDataset() to be able to retrieve supported data
- *     types from the driver. This option must be used consistently among
- *     IsArrowSchemaSupported(), CreateFieldFromArrowSchema() and
- *     WriteArrowBatch().
- * </li>
- * </ul>
- *
  * This is the same as the C++ method OGRLayer::IsArrowSchemaSupported().
  *
  * @param hLayer Layer.
  * @param schema Schema of type struct (format = '+s')
- * @param papszOptions Options. Null terminated list, or nullptr.
+ * @param papszOptions Options (none currently). Null terminated list, or nullptr.
  * @param[out] ppszErrorMsg nullptr, or pointer to a string that will contain
  * the reason of the failure, when this function returns false.
  * @return true if the ArrowSchema is supported for writing.
@@ -5005,8 +4946,6 @@ bool OGRLayer::CreateFieldFromArrowSchemaInternal(
         return true;
     }
 
-    const bool bUseFallbackTypes = CPLTestBool(
-        CSLFetchNameValueDef(papszOptions, "USE_FALLBACK_TYPES", "NO"));
     CPLStringList aosNativeTypes;
     auto poDS = const_cast<OGRLayer *>(this)->GetDataset();
     if (poDS)
@@ -5032,53 +4971,28 @@ bool OGRLayer::CreateFieldFromArrowSchemaInternal(
         format = schema->format;
     }
 
-    const auto CheckSupportedType =
-        [fieldName, bUseFallbackTypes, &osFieldPrefix,
-         &aosNativeTypes](OGRFieldType eTypeIn, OGRFieldSubType eSubTypeIn,
-                          OGRFieldType &eTypeOut, OGRFieldSubType &eSubTypeOut)
-    {
-        const char *pszTypeName = OGRFieldDefn::GetFieldTypeName(eTypeIn);
-        eTypeOut = eTypeIn;
-        eSubTypeOut = eSubTypeIn;
-        if (!aosNativeTypes.empty() &&
-            aosNativeTypes.FindString(pszTypeName) < 0)
-        {
-            if (bUseFallbackTypes)
-            {
-                eTypeOut = OFTString;
-                eSubTypeOut =
-                    (eTypeIn == OFTIntegerList || eTypeIn == OFTInteger64List ||
-                     eTypeIn == OFTRealList || eTypeIn == OFTStringList)
-                        ? OFSTJSON
-                        : OFSTNone;
-            }
-            else
-            {
-                CPLError(CE_Failure, CPLE_AppDefined, "%s",
-                         ("Field " + osFieldPrefix + fieldName +
-                          " would require using OGR type " + pszTypeName +
-                          " but the driver does not support it. You may set "
-                          "the USE_FALLBACK_TYPES=YES option to allow use of a "
-                          "fallback type")
-                             .c_str());
-                return false;
-            }
-        }
-        return true;
-    };
-
-    const auto AddField = [this, schema, fieldName, &CheckSupportedType,
+    const auto AddField = [this, schema, fieldName, &aosNativeTypes,
                            &osFieldPrefix](OGRFieldType eTypeIn,
                                            OGRFieldSubType eSubTypeIn,
                                            int nWidth, int nPrecision)
     {
-        OGRFieldType eType;
-        OGRFieldSubType eSubType;
-        if (!CheckSupportedType(eTypeIn, eSubTypeIn, eType, eSubType))
-            return false;
-        OGRFieldDefn oFieldDefn((osFieldPrefix + fieldName).c_str(), eType);
-        oFieldDefn.SetSubType(eSubType);
-        if (eType == eTypeIn && eSubType == eSubTypeIn)
+        const char *pszTypeName = OGRFieldDefn::GetFieldTypeName(eTypeIn);
+        auto eTypeOut = eTypeIn;
+        auto eSubTypeOut = eSubTypeIn;
+        if (!aosNativeTypes.empty() &&
+            aosNativeTypes.FindString(pszTypeName) < 0)
+        {
+            eTypeOut = OFTString;
+            eSubTypeOut =
+                (eTypeIn == OFTIntegerList || eTypeIn == OFTInteger64List ||
+                 eTypeIn == OFTRealList || eTypeIn == OFTStringList)
+                    ? OFSTJSON
+                    : OFSTNone;
+        }
+
+        OGRFieldDefn oFieldDefn((osFieldPrefix + fieldName).c_str(), eTypeOut);
+        oFieldDefn.SetSubType(eSubTypeOut);
+        if (eTypeOut == eTypeIn && eSubTypeOut == eSubTypeIn)
         {
             oFieldDefn.SetWidth(nWidth);
             oFieldDefn.SetPrecision(nPrecision);
@@ -5210,22 +5124,10 @@ bool OGRLayer::CreateFieldFromArrowSchemaInternal(
  *
  * This method and CreateField() are mutually exclusive in the same session.
  *
- * Supported options of the base implementation are:
- * <ul>
- * <li>USE_FALLBACK_TYPES=YES. This may be set to allow GDAL to fallback to
- *     another OGRFieldType data type (typically String) when the natural OGR
- *     type is not supported in creation by the driver. This implies that the
- *     layer implements GetDataset() to be able to retrieve supported data
- *     types from the driver. This option must be used consistently among
- *     IsArrowSchemaSupported(), CreateFieldFromArrowSchema() and
- *     WriteArrowBatch().
- * </li>
- * </ul>
- *
  * This method is the same as the C function OGR_L_CreateFieldFromArrowSchema().
  *
  * @param schema Schema of the field to create.
- * @param papszOptions Options. Null terminated list, or nullptr.
+ * @param papszOptions Options (none currently). Null terminated list, or nullptr.
  * @return true in case of success
  * @since 3.8
  */
@@ -5253,23 +5155,11 @@ bool OGRLayer::CreateFieldFromArrowSchema(const struct ArrowSchema *schema,
  *
  * This method and CreateField() are mutually exclusive in the same session.
  *
- * Supported options of the base implementation are:
- * <ul>
- * <li>USE_FALLBACK_TYPES=YES. This may be set to allow GDAL to fallback to
- *     another OGRFieldType data type (typically String) when the natural OGR
- *     type is not supported in creation by the driver. This implies that the
- *     layer implements GetDataset() to be able to retrieve supported data
- *     types from the driver. This option must be used consistently among
- *     IsArrowSchemaSupported(), CreateFieldFromArrowSchema() and
- *     WriteArrowBatch().
- * </li>
- * </ul>
- *
  * This method is the same as the C++ method OGRLayer::CreateFieldFromArrowSchema().
  *
  * @param hLayer Layer.
  * @param schema Schema of the field to create.
- * @param papszOptions Options. Null terminated list, or nullptr.
+ * @param papszOptions Options (none currently). Null terminated list, or nullptr.
  * @return true in case of success
  * @since 3.8
  */
@@ -5305,15 +5195,13 @@ struct FieldInfo
     int nScale = 0;         // only used for decimal fields
 };
 
-static bool
-BuildOGRFieldInfo(const struct ArrowSchema *schema, struct ArrowArray *array,
-                  const OGRFeatureDefn *poFeatureDefn,
-                  const std::string &osFieldPrefix, bool bUseFallbackTypes,
-                  const CPLStringList &aosNativeTypes, bool &bFallbackTypesUsed,
-                  std::vector<FieldInfo> &asFieldInfo, const char *pszFIDName,
-                  const char *pszGeomFieldName,
-                  const struct ArrowSchema *&schemaFIDColumn,
-                  struct ArrowArray *&arrayFIDColumn)
+static bool BuildOGRFieldInfo(
+    const struct ArrowSchema *schema, struct ArrowArray *array,
+    const OGRFeatureDefn *poFeatureDefn, const std::string &osFieldPrefix,
+    const CPLStringList &aosNativeTypes, bool &bFallbackTypesUsed,
+    std::vector<FieldInfo> &asFieldInfo, const char *pszFIDName,
+    const char *pszGeomFieldName, const struct ArrowSchema *&schemaFIDColumn,
+    struct ArrowArray *&arrayFIDColumn)
 {
     const char *fieldName = schema->name;
     const char *format = schema->format;
@@ -5322,11 +5210,11 @@ BuildOGRFieldInfo(const struct ArrowSchema *schema, struct ArrowArray *array,
         const std::string osNewPrefix(osFieldPrefix + fieldName + ".");
         for (int64_t i = 0; i < schema->n_children; ++i)
         {
-            if (!BuildOGRFieldInfo(
-                    schema->children[i], array->children[i], poFeatureDefn,
-                    osNewPrefix, bUseFallbackTypes, aosNativeTypes,
-                    bFallbackTypesUsed, asFieldInfo, pszFIDName,
-                    pszGeomFieldName, schemaFIDColumn, arrayFIDColumn))
+            if (!BuildOGRFieldInfo(schema->children[i], array->children[i],
+                                   poFeatureDefn, osNewPrefix, aosNativeTypes,
+                                   bFallbackTypesUsed, asFieldInfo, pszFIDName,
+                                   pszGeomFieldName, schemaFIDColumn,
+                                   arrayFIDColumn))
             {
                 return false;
             }
@@ -5388,7 +5276,7 @@ BuildOGRFieldInfo(const struct ArrowSchema *schema, struct ArrowArray *array,
                         bTypeOK = true;
                         break;
                     }
-                    else if (bUseFallbackTypes && eOGRType == OFTString)
+                    else if (eOGRType == OFTString)
                     {
                         bFallbackTypesUsed = true;
                         bTypeOK = true;
@@ -5435,7 +5323,7 @@ BuildOGRFieldInfo(const struct ArrowSchema *schema, struct ArrowArray *array,
                 {
                     bTypeOK = true;
                 }
-                else if (bUseFallbackTypes && eOGRType == OFTString)
+                else if (eOGRType == OFTString)
                 {
                     bFallbackTypesUsed = true;
                     bTypeOK = true;
@@ -5459,7 +5347,7 @@ BuildOGRFieldInfo(const struct ArrowSchema *schema, struct ArrowArray *array,
                 {
                     bTypeOK = true;
                 }
-                else if (bUseFallbackTypes && eOGRType == OFTString)
+                else if (eOGRType == OFTString)
                 {
                     bFallbackTypesUsed = true;
                     bTypeOK = true;
@@ -5491,7 +5379,7 @@ BuildOGRFieldInfo(const struct ArrowSchema *schema, struct ArrowArray *array,
                             bTypeOK = true;
                             break;
                         }
-                        else if (bUseFallbackTypes && eOGRType == OFTString)
+                        else if (eOGRType == OFTString)
                         {
                             bFallbackTypesUsed = true;
                             bTypeOK = true;
@@ -5537,7 +5425,7 @@ BuildOGRFieldInfo(const struct ArrowSchema *schema, struct ArrowArray *array,
                     {
                         bTypeOK = true;
                     }
-                    else if (bUseFallbackTypes && eOGRType == OFTString)
+                    else if (eOGRType == OFTString)
                     {
                         bFallbackTypesUsed = true;
                         bTypeOK = true;
@@ -5609,7 +5497,7 @@ BuildOGRFieldInfo(const struct ArrowSchema *schema, struct ArrowArray *array,
                 {
                     bTypeOK = true;
                 }
-                else if (bUseFallbackTypes && eOGRType == OFTString)
+                else if (eOGRType == OFTString)
                 {
                     bFallbackTypesUsed = true;
                     bTypeOK = true;
@@ -6229,14 +6117,6 @@ static bool FillFeature(OGRLayer *poLayer, const struct ArrowSchema *schema,
  *     The corresponding ArrowArray must be of type binary (w) or large
  *     binary (W).
  * </li>
- * <li>USE_FALLBACK_TYPES=YES. This may be set to allow GDAL to fallback to
- *     another OGRFieldType data type (typically String) when the natural OGR
- *     type is not supported in creation by the driver. This implies that the
- *     layer implements GetDataset() to be able to retrieve supported data
- *     types from the driver. This option must be used consistently among
- *     IsArrowSchemaSupported(), CreateFieldFromArrowSchema() and
- *     WriteArrowBatch().
- * </li>
  * </ul>
  *
  * The following example demonstrates how to copy a layer from one format to
@@ -6340,8 +6220,6 @@ bool OGRLayer::WriteArrowBatch(const struct ArrowSchema *schema,
         return false;
     }
 
-    const bool bUseFallbackTypes = CPLTestBool(
-        CSLFetchNameValueDef(papszOptions, "USE_FALLBACK_TYPES", "NO"));
     CPLStringList aosNativeTypes;
     auto poDS = const_cast<OGRLayer *>(this)->GetDataset();
     if (poDS)
@@ -6368,11 +6246,10 @@ bool OGRLayer::WriteArrowBatch(const struct ArrowSchema *schema,
     bool bFallbackTypesUsed = false;
     for (int64_t i = 0; i < schema->n_children; ++i)
     {
-        if (!BuildOGRFieldInfo(schema->children[i], array->children[i],
-                               poLayerDefn, std::string(), bUseFallbackTypes,
-                               aosNativeTypes, bFallbackTypesUsed, asFieldInfo,
-                               pszFIDName, pszGeomFieldName, schemaFIDColumn,
-                               arrayFIDColumn))
+        if (!BuildOGRFieldInfo(
+                schema->children[i], array->children[i], poLayerDefn,
+                std::string(), aosNativeTypes, bFallbackTypesUsed, asFieldInfo,
+                pszFIDName, pszGeomFieldName, schemaFIDColumn, arrayFIDColumn))
         {
             return false;
         }
@@ -6638,14 +6515,6 @@ bool OGRLayer::WriteArrowBatch(const struct ArrowSchema *schema,
  *     ARROW:extension:name=ogc.wkb as a field metadata.
  *     The corresponding ArrowArray must be of type binary (w) or large
  *     binary (W).
- * </li>
- * <li>USE_FALLBACK_TYPES=YES. This may be set to allow GDAL to fallback to
- *     another OGRFieldType data type (typically String) when the natural OGR
- *     type is not supported in creation by the driver. This implies that the
- *     layer implements GetDataset() to be able to retrieve supported data
- *     types from the driver. This option must be used consistently among
- *     IsArrowSchemaSupported(), CreateFieldFromArrowSchema() and
- *     WriteArrowBatch().
  * </li>
  * </ul>
  *

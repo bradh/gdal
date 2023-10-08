@@ -6288,11 +6288,13 @@ bool OGRLayer::WriteArrowBatch(const struct ArrowSchema *schema,
     };
     LayerDefnTmpRefReleaser oLayerDefnTmpRefReleaser(oLayerDefnTmp);
 
+    std::vector<int> anIdentityFieldMap;
     if (bFallbackTypesUsed)
     {
         oLayerDefnTmp.SetGeomType(wkbNone);
         for (int i = 0; i < poLayerDefn->GetFieldCount(); ++i)
         {
+            anIdentityFieldMap.push_back(i);
             const auto poSrcFieldDefn = poLayerDefn->GetFieldDefn(i);
             const auto oIter = oMapOGRFieldIndexToFieldInfoIndex.find(i);
             OGRFieldDefn oFieldDefn(
@@ -6391,7 +6393,9 @@ bool OGRLayer::WriteArrowBatch(const struct ArrowSchema *schema,
 
         if (bFallbackTypesUsed)
         {
-            oFeatureTarget.SetFrom(&oFeature);
+            oFeatureTarget.SetFrom(&oFeature, anIdentityFieldMap.data(),
+                                   /*bForgiving=*/true,
+                                   /*bUseISO8601ForDateTimeAsString=*/true);
             oFeatureTarget.SetFID(oFeature.GetFID());
         }
 

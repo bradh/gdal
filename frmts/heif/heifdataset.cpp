@@ -29,7 +29,10 @@
 #include "ogr_spatialref.h"
 
 #include "libheif/heif.h"
+#include "st0601.h"
 
+#include <cpl_port.h>
+#include <cstddef>
 #include <vector>
 
 extern "C" void CPL_DLL GDALRegister_HEIF();
@@ -77,12 +80,25 @@ class GDALHEIFDataset final : public GDALPamDataset
     void ReadMetadata();
     void OpenThumbnails();
 
+    double adfGeoTransform[6];
+    int bGeoTransformSet;
+    int nGCPCount;
+    OGRSpatialReference m_oGCPSRS{};
+    GDAL_GCP *pasGCPList;
+
   public:
     GDALHEIFDataset();
     ~GDALHEIFDataset();
 
     static int Identify(GDALOpenInfo *poOpenInfo);
     static GDALDataset *Open(GDALOpenInfo *poOpenInfo);
+
+    int GetGCPCount() override;
+    const OGRSpatialReference *GetGCPSpatialRef() const override;
+    const GDAL_GCP *GetGCPs() override;
+
+    CPLErr GetGeoTransform(double *padfTransform) override;
+    const OGRSpatialReference *GetSpatialRef() const override;
 };
 
 /************************************************************************/
@@ -121,7 +137,10 @@ class GDALHEIFRasterBand final : public GDALPamRasterBand
 /*                         GDALHEIFDataset()                            */
 /************************************************************************/
 
-GDALHEIFDataset::GDALHEIFDataset() : m_hCtxt(heif_context_alloc())
+GDALHEIFDataset::GDALHEIFDataset()
+    : m_hCtxt(heif_context_alloc()), bGeoTransformSet(FALSE),
+    nGCPCount(0), pasGCPList(nullptr)
+    
 
 {
 #ifdef HAS_CUSTOM_FILE_READER
@@ -131,6 +150,8 @@ GDALHEIFDataset::GDALHEIFDataset() : m_hCtxt(heif_context_alloc())
     m_oReader.seek = SeekCbk;
     m_oReader.wait_for_file_size = WaitForFileSizeCbk;
 #endif
+    m_oGCPSRS.SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);
+    m_oGCPSRS.importFromWkt(SRS_WKT_WGS84_LAT_LONG);
 }
 
 /************************************************************************/
@@ -508,8 +529,138 @@ void GDALHEIFDataset::ReadMetadata()
                 }
             }
         }
+        else if (pszType && EQUAL(pszType, "uri ")) 
+        {
+            // TODO: version check
+            const char *pszItemUriType = heif_image_handle_get_metadata_item_uri_type(m_hImageHandle, id);
+            if (pszItemUriType)
+            {
+                if (EQUAL(pszItemUriType, "urn:uuid:aac8ab7d-f519-5437-b7d3-c973d155e253"))
+                {
+                    std::string osContentID;
+                    osContentID.resize(nCount);
+                    heif_image_handle_get_metadata(m_hImageHandle, id, &osContentID[0]);
+                    char *apszMDList[2] = {&osContentID[0], nullptr};
+                    GDALDataset::SetMetadata(apszMDList, "GIMI ContentID");
+                }
+                else if (EQUAL(pszItemUriType, "urn:nsg:KLV:ul:060E2B34.020B0101.0E010301.01000000"))
+                {
+                    ST0601 *parser = new ST0601();
+                    char **papszMD = nullptr;
+                    std::vector<GByte> data(nCount);
+                    heif_image_handle_get_metadata(m_hImageHandle, id, &data[0]);
+                    size_t dataOffset = 0;
+                    double lat1, lon1, lat2, lon2, lat3, lon3, lat4, lon4;
+                    bool haveLat1 = false;
+                    bool haveLon1 = false;
+                    bool haveLat2 = false;
+                    bool haveLon2 = false;
+                    bool haveLat3 = false;
+                    bool haveLon3 = false;
+                    bool haveLat4 = false;
+                    bool haveLon4 = false;
+                    // Note: this assumes that only the body of the set is here.
+                    // TODO: We could check for the UL and set length too.
+                    while (dataOffset < nCount) {
+                        // TODO: get BER OID instead
+                        int tag = data[dataOffset];
+                        dataOffset += 1;
+                        const char *pszTagName = parser->lookupTagName(tag);
+                        const char *pszValue = parser->decodeValue(tag, data, &dataOffset);
+                        papszMD = CSLAddNameValue(papszMD, pszTagName, pszValue);
+                        if (tag == 82)
+                        {
+                            haveLat1 = true;
+                            lat1 = CPLAtof(pszValue);
+                        }
+                        if (tag == 83)
+                        {
+                            haveLon1 = true;
+                            lon1 = CPLAtof(pszValue);
+                        }
+                        if (tag == 84)
+                        {
+                            haveLat2 = true;
+                            lat2 = CPLAtof(pszValue);
+                        }
+                        if (tag == 85)
+                        {
+                            haveLon2 = true;
+                            lon2 = CPLAtof(pszValue);
+                        }
+                        if (tag == 86)
+                        {
+                            haveLat3 = true;
+                            lat3 = CPLAtof(pszValue);
+                        }
+                        if (tag == 87)
+                        {
+                            haveLon3 = true;
+                            lon3 = CPLAtof(pszValue);
+                        }
+                        if (tag == 88)
+                        {
+                            haveLat4 = true;
+                            lat4 = CPLAtof(pszValue);
+                        }
+                        if (tag == 89)
+                        {
+                            haveLon4 = true;
+                            lon4 = CPLAtof(pszValue);
+                        }
+                    }
+                    if (haveLat1 && haveLon1 && haveLat2 && haveLon2 && haveLat3 && haveLon3 && haveLat4 && haveLon4)
+                    {
+                        nGCPCount = 4;
+                        pasGCPList = (GDAL_GCP *)CPLCalloc(sizeof(GDAL_GCP), nGCPCount);
+                        GDALInitGCPs(nGCPCount, pasGCPList);
+                        // TODO: don't hard code pixel / line extent
+                        pasGCPList[0].pszId = CPLStrdup("GCP_1");
+                        pasGCPList[0].dfGCPX = lon1;
+                        pasGCPList[0].dfGCPY = lat1;
+                        pasGCPList[0].dfGCPPixel = 0;
+                        pasGCPList[0].dfGCPLine = 0;
+                        pasGCPList[1].pszId = CPLStrdup("GCP_2");
+                        pasGCPList[1].dfGCPX = lon2;
+                        pasGCPList[1].dfGCPY = lat2;
+                        pasGCPList[1].dfGCPPixel = 8003.0;
+                        pasGCPList[1].dfGCPLine = 0;
+                        pasGCPList[2].pszId = CPLStrdup("GCP_3");
+                        pasGCPList[2].dfGCPX = lon3;
+                        pasGCPList[2].dfGCPY = lat3;
+                        pasGCPList[2].dfGCPPixel = 8003.0;
+                        pasGCPList[2].dfGCPLine = 7885.0;
+                        pasGCPList[3].pszId = CPLStrdup("GCP_4");
+                        pasGCPList[3].dfGCPX = lon4;
+                        pasGCPList[3].dfGCPY = lat4;
+                        pasGCPList[3].dfGCPPixel = 0.0;
+                        pasGCPList[3].dfGCPLine = 7885.0;
+                        if (GDALGCPsToGeoTransform(nGCPCount, pasGCPList, adfGeoTransform, TRUE))
+                        {
+                            printf("transformed\n");
+                            bGeoTransformSet = TRUE;
+                        }
+                        else
+                        {
+                            printf("failed to transform\n");
+                        }
+                    }
+                    GDALDataset::SetMetadata(papszMD, "GIMI ST0601");
+                    delete parser;
+                }
+                else if (EQUAL(pszItemUriType, "urn:nsg:KLV:ul:060E2B34.02050101.0E010504.00000000"))
+                {
+                    printf("TODO: process MIMD metadata\n");
+                }
+                else
+                {
+                    printf("TODO: process other URI metadata: %s\n", pszItemUriType);
+                }
+            }
+        }
     }
 }
+
 
 /************************************************************************/
 /*                         OpenThumbnails()                             */
@@ -581,6 +732,68 @@ GDALDataset *GDALHEIFDataset::Open(GDALOpenInfo *poOpenInfo)
 
     return poDS.release();
 }
+
+/************************************************************************/
+/*                          GetGeoTransform()                           */
+/************************************************************************/
+
+CPLErr GDALHEIFDataset::GetGeoTransform(double *padfTransform)
+
+{
+    memcpy(padfTransform, adfGeoTransform, sizeof(double) * 6);
+
+    if (bGeoTransformSet)
+        return CE_None;
+
+    return CE_Failure;
+}
+
+/************************************************************************/
+/*                          GetSpatialRef()                             */
+/************************************************************************/
+
+const OGRSpatialReference *GDALHEIFDataset::GetSpatialRef() const
+
+{
+    if (bGeoTransformSet)
+        return &m_oGCPSRS;
+
+    return nullptr;
+}
+
+/************************************************************************/
+/*                            GetGCPCount()                             */
+/************************************************************************/
+
+int GDALHEIFDataset::GetGCPCount()
+
+{
+    return nGCPCount;
+}
+
+/************************************************************************/
+/*                          GetGCPSpatialRef()                          */
+/************************************************************************/
+
+const OGRSpatialReference *GDALHEIFDataset::GetGCPSpatialRef() const
+
+{
+    if (nGCPCount > 0)
+        return &m_oGCPSRS;
+
+    return nullptr;
+}
+
+/************************************************************************/
+/*                               GetGCP()                               */
+/************************************************************************/
+
+const GDAL_GCP *GDALHEIFDataset::GetGCPs()
+
+{
+    return pasGCPList;
+}
+
 
 /************************************************************************/
 /*                          GDALHEIFRasterBand()                        */

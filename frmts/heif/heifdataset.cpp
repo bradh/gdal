@@ -614,7 +614,6 @@ void GDALHEIFDataset::ReadMetadata()
                         nGCPCount = 4;
                         pasGCPList = (GDAL_GCP *)CPLCalloc(sizeof(GDAL_GCP), nGCPCount);
                         GDALInitGCPs(nGCPCount, pasGCPList);
-                        // TODO: don't hard code pixel / line extent
                         pasGCPList[0].pszId = CPLStrdup("GCP_1");
                         pasGCPList[0].dfGCPX = lon1;
                         pasGCPList[0].dfGCPY = lat1;
@@ -623,21 +622,20 @@ void GDALHEIFDataset::ReadMetadata()
                         pasGCPList[1].pszId = CPLStrdup("GCP_2");
                         pasGCPList[1].dfGCPX = lon2;
                         pasGCPList[1].dfGCPY = lat2;
-                        pasGCPList[1].dfGCPPixel = 8003.0;
+                        pasGCPList[1].dfGCPPixel = nRasterXSize;
                         pasGCPList[1].dfGCPLine = 0;
                         pasGCPList[2].pszId = CPLStrdup("GCP_3");
                         pasGCPList[2].dfGCPX = lon3;
                         pasGCPList[2].dfGCPY = lat3;
-                        pasGCPList[2].dfGCPPixel = 8003.0;
-                        pasGCPList[2].dfGCPLine = 7885.0;
+                        pasGCPList[2].dfGCPPixel = nRasterXSize;
+                        pasGCPList[2].dfGCPLine = nRasterYSize;
                         pasGCPList[3].pszId = CPLStrdup("GCP_4");
                         pasGCPList[3].dfGCPX = lon4;
                         pasGCPList[3].dfGCPY = lat4;
-                        pasGCPList[3].dfGCPPixel = 0.0;
-                        pasGCPList[3].dfGCPLine = 7885.0;
-                        if (GDALGCPsToGeoTransform(nGCPCount, pasGCPList, adfGeoTransform, TRUE))
+                        pasGCPList[3].dfGCPPixel = 0;
+                        pasGCPList[3].dfGCPLine = nRasterYSize;
+                        if (GDALGCPsToGeoTransform(nGCPCount, pasGCPList, adfGeoTransform, FALSE))
                         {
-                            printf("transformed\n");
                             bGeoTransformSet = TRUE;
                         }
                         else

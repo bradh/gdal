@@ -25,6 +25,7 @@
 
 #include <cpl_port.h>
 #include <cstddef>
+#include <cstdint>
 #include <map>
 #include <string>
 #include <vector>
@@ -182,6 +183,69 @@ class CornerLongitudePoint4 : public CornerLongitudePoint
         }
 
         ~CornerLongitudePoint4() {}
+};
+
+class CheckSum : public Abstract0601Parser
+{
+    public:
+        const char* getTagName() const override
+        {
+            return "Checksum";
+        }
+
+        const char* decodeValue(std::vector<GByte> v) const override
+        {
+            char* formattedValue;
+            asprintf(&formattedValue, "0x%02x 0x%02x", v[0], v[1]);
+            return formattedValue;
+        }
+
+        ~CheckSum()
+        {
+        }
+};
+
+class MissionID : public Abstract0601Parser
+{
+    public:
+        const char* getTagName() const override
+        {
+            return "Mission ID";
+        }
+
+        const char* decodeValue(std::vector<GByte> v) const override
+        {
+            char* formattedValue = (char*)malloc(v.size() + 1);
+            memcpy((void*)formattedValue, v.data(), v.size());
+            formattedValue[v.size()] = '\0';
+            return formattedValue;
+        }
+
+        ~MissionID()
+        {
+        }
+};
+
+
+class PrecisionTimeStamp : public Abstract0601Parser
+{
+    public:
+        const char* getTagName() const override
+        {
+            return "Precision Time Stamp";
+        }
+
+        const char* decodeValue(std::vector<GByte> v) const override
+        {
+            char* formattedValue;
+            uint64_t value = ((long)(v[0]) << 56) + ((long)(v[1]) << 48) + ((long)(v[2]) << 40) + ((long)(v[3]) << 32) + (v[4] << 24) + (v[5] << 16) + (v[6] << 8) + v[7];
+            asprintf(&formattedValue, "%ld", value);
+            return formattedValue;
+        }
+
+        ~PrecisionTimeStamp()
+        {
+        }
 };
 
 class ST0601

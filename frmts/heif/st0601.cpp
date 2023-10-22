@@ -29,6 +29,9 @@ Abstract0601Parser::~Abstract0601Parser()
 
 ST0601::ST0601()
 {
+    registry[1] = new CheckSum();
+    registry[2] = new PrecisionTimeStamp();
+    registry[3] = new MissionID();
     registry[65] = new ST0601Version();
     registry[82] = new CornerLatitudePoint1();
     registry[83] = new CornerLongitudePoint1();
@@ -51,13 +54,7 @@ const char * ST0601::lookupTagName(int tag)
         Abstract0601Parser *parser = registry[tag];
         return parser->getTagName();
     }
-    switch(tag)
-    {
-        case 1:
-            return "Checksum";
-        default:
-            return "TODO tag";
-    }
+    return "TODO tag";
 }
 
 const char * ST0601::decodeValue(int tag, std::vector<GByte> data, size_t *dataOffset)

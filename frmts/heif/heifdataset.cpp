@@ -408,6 +408,26 @@ bool GDALHEIFDataset::Init(GDALOpenInfo *poOpenInfo)
 
 void GDALHEIFDataset::ReadMetadata()
 {
+    int numMetadata = heif_context_get_number_of_file_level_metadata(m_hCtxt);
+    std::vector<heif_item_id> metadataIDs(numMetadata);
+    heif_context_get_list_of_file_level_metadata_IDs(m_hCtxt, metadataIDs.data(), numMetadata);
+    for (int i = 0; i < numMetadata; i++) {
+        if (EQUAL(heif_context_get_file_level_metadata_type(m_hCtxt, metadataIDs[i]), "mime") &&
+            EQUAL(heif_context_get_file_level_metadata_content_type(m_hCtxt, metadataIDs[i]), 
+                  "application/x.fake-dni-arh+xml"))
+        {
+            long metadataSize = heif_context_get_file_level_metadata_size(m_hCtxt, metadataIDs[i]);
+            std::vector<uint8_t> metadata(metadataSize);
+            heif_context_get_file_level_metadata(m_hCtxt, metadataIDs[i], metadata.data());
+            std::string metadata_str(metadata.begin(), metadata.end());
+            char **papszMD = nullptr;
+            std::string tag = "XML_" + i;
+            papszMD = CSLAddNameValue(papszMD, tag.c_str(), metadata_str.c_str());
+            // TODO: consider parsing out basic values
+            GDALDataset::SetMetadata(papszMD, "GIMI File Security");
+        }
+    }
+
     const int nMDBlocks = heif_image_handle_get_number_of_metadata_blocks(
         m_hImageHandle, nullptr);
     if (nMDBlocks <= 0)
@@ -535,15 +555,8 @@ void GDALHEIFDataset::ReadMetadata()
             const char *pszItemUriType = heif_image_handle_get_metadata_item_uri_type(m_hImageHandle, id);
             if (pszItemUriType)
             {
-                if (EQUAL(pszItemUriType, "urn:uuid:aac8ab7d-f519-5437-b7d3-c973d155e253"))
-                {
-                    std::string osContentID;
-                    osContentID.resize(nCount);
-                    heif_image_handle_get_metadata(m_hImageHandle, id, &osContentID[0]);
-                    char *apszMDList[2] = {&osContentID[0], nullptr};
-                    GDALDataset::SetMetadata(apszMDList, "GIMI ContentID");
-                }
-                else if (EQUAL(pszItemUriType, "urn:nsg:KLV:ul:060E2B34.020B0101.0E010301.01000000"))
+                if (EQUAL(pszItemUriType, "urn:smpte:ul:060E2B34.020B0101.0E010301.01000000")
+                    || EQUAL(pszItemUriType, "urn:smpte:ul:060E2B34020B01010E01030101000000"))
                 {
                     ST0601 *parser = new ST0601();
                     char **papszMD = nullptr;
@@ -638,15 +651,11 @@ void GDALHEIFDataset::ReadMetadata()
                         {
                             bGeoTransformSet = TRUE;
                         }
-                        else
-                        {
-                            printf("failed to transform\n");
-                        }
                     }
                     GDALDataset::SetMetadata(papszMD, "GIMI ST0601");
                     delete parser;
                 }
-                else if (EQUAL(pszItemUriType, "urn:nsg:KLV:ul:060E2B34.02050101.0E010504.00000000"))
+                else if (EQUAL(pszItemUriType, "urn:smpte:ul:060E2B34.02050101.0E010504.00000000"))
                 {
                     printf("TODO: process MIMD metadata\n");
                 }

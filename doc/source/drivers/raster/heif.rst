@@ -32,6 +32,8 @@ If a file contains several top-level images, they will be exposed as GDAL subdat
 Driver capabilities
 -------------------
 
+.. supports_createcopy::
+
 .. supports_virtualio:: if libheif >= 1.4
 
 Creation support

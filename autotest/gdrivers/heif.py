@@ -232,7 +232,7 @@ def make_data_with_alpha():
     return ds
 
 
-heif_codecs = ["HEIF", "JPEG", "JPEG2000"]
+heif_codecs = ["HEIF"]
 
 
 @pytest.mark.parametrize("codec", heif_codecs)

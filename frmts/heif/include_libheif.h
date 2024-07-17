@@ -29,6 +29,7 @@
 #define INCLUDE_LIBHEIF_DEFINED
 
 #include "libheif/heif.h"
+#include "libheif/heif_properties.h"
 
 #define BUILD_LIBHEIF_VERSION(x, y, z)                                         \
     (((x) << 24) | ((y) << 16) | ((z) << 8) | 0)

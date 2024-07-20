@@ -82,8 +82,12 @@ class GDALHEIFDataset final : public GDALPamDataset
     CPLErr GetGeoTransform(double *) override;
 };
 
-static const uint8_t GeoHEIFTransformUUID[] = {0x76, 0x3c, 0xf8, 0x38, 0xb6, 0x30, 0x44, 0x0b, 0x84, 0xf8, 0xbe, 0x44, 0xbf, 0x99, 0x10, 0xaf};
-static const uint8_t GeoHEIFWkt2UUID[] = {0x13, 0x7a, 0x17, 0x42, 0x75, 0xac, 0x47, 0x47, 0x82, 0xbc, 0x65, 0x95, 0x76, 0xe8, 0x67, 0x5b};
+static const uint8_t GeoHEIFTransformUUID[] = {
+    0x76, 0x3c, 0xf8, 0x38, 0xb6, 0x30, 0x44, 0x0b,
+    0x84, 0xf8, 0xbe, 0x44, 0xbf, 0x99, 0x10, 0xaf};
+static const uint8_t GeoHEIFWkt2UUID[] = {0x13, 0x7a, 0x17, 0x42, 0x75, 0xac,
+                                          0x47, 0x47, 0x82, 0xbc, 0x65, 0x95,
+                                          0x76, 0xe8, 0x67, 0x5b};
 
 /************************************************************************/
 /*                       GDALHEIFRasterBand                             */
@@ -697,7 +701,8 @@ CPLErr GDALHEIFRasterBand::IReadBlock(int, int nBlockYOff, void *pImage)
 /*                          GetGeoTransform()                           */
 /************************************************************************/
 
-static double to_double(uint8_t* data, uint32_t index) {
+static double to_double(uint8_t *data, uint32_t index)
+{
     uint64_t v = 0;
     v |= ((uint64_t)data[index]) << 56;
     v |= ((uint64_t)data[index + 1]) << 48;
@@ -720,19 +725,33 @@ CPLErr GDALHEIFDataset::GetGeoTransform(double *padfTransform)
     int num_props = heif_item_get_properties_of_type(
         m_hCtxt, item_id, heif_item_property_type_uuid, &prop_ids[0], 10);
 
-    for (int i = 0; i < num_props; i++) {
+    for (int i = 0; i < num_props; i++)
+    {
+        uint8_t extended_type[16];
+        // TODO: check error
+        heif_item_get_property_uuid_type(m_hCtxt, item_id, prop_ids[i],
+                                         extended_type);
+        if (memcmp(extended_type, GeoHEIFTransformUUID,
+                   sizeof(GeoHEIFTransformUUID)) != 0)
+        {
+            continue;
+        }
         // TODO check error
         size_t size;
-        heif_item_get_property_raw_size(m_hCtxt,item_id, prop_ids[i], &size);
-        if (size != 68) {
+        heif_item_get_property_raw_size(m_hCtxt, item_id, prop_ids[i], &size);
+        if (size != 52)
+        {
             continue;
         }
         auto data = std::make_shared<std::vector<uint8_t>>(size);
-        heif_item_get_property_raw_data(m_hCtxt, item_id, prop_ids[i], data->data());
-        // Match on extended_type and version
-        if ((memcmp(data->data(), GeoHEIFTransformUUID, 16) == 0) && (data->data()[16] == 0x00)) {
-            uint32_t index = 16;
-            if (data->data()[index + 3] == 0x01) {
+        heif_item_get_property_raw_data(m_hCtxt, item_id, prop_ids[i],
+                                        data->data());
+        // Match version
+        if (data->data()[0] == 0x00)
+        {
+            uint32_t index = 0;
+            if (data->data()[index + 3] == 0x01)
+            {
                 index += 4;
                 padfTransform[1] = to_double(data->data(), index);
                 index += 8;
@@ -768,15 +787,27 @@ const OGRSpatialReference *GDALHEIFDataset::GetSpatialRef() const
     int num_props = heif_item_get_properties_of_type(
         m_hCtxt, item_id, heif_item_property_type_uuid, &prop_ids[0], 10);
 
-    for (int i = 0; i < num_props; i++) {
+    for (int i = 0; i < num_props; i++)
+    {
+        uint8_t extended_type[16];
+        // TODO check error
+        heif_item_get_property_uuid_type(m_hCtxt, item_id, prop_ids[i],
+                                         extended_type);
+        if (memcmp(extended_type, GeoHEIFWkt2UUID, sizeof(GeoHEIFWkt2UUID)) !=
+            0)
+        {
+            continue;
+        }
         // TODO check error
         size_t size;
-        heif_item_get_property_raw_size(m_hCtxt,item_id, prop_ids[i], &size);
+        heif_item_get_property_raw_size(m_hCtxt, item_id, prop_ids[i], &size);
         auto data = std::make_shared<std::vector<uint8_t>>(size);
-        heif_item_get_property_raw_data(m_hCtxt, item_id, prop_ids[i], data->data());
-        // Match on extended_type and version
-        if ((memcmp(data->data(), GeoHEIFWkt2UUID, 16) == 0) && (data->data()[16] == 0x00)) {
-            m_oSRS.importFromWkt((const char*)&(data->data()[20]));
+        heif_item_get_property_raw_data(m_hCtxt, item_id, prop_ids[i],
+                                        data->data());
+        // Match version
+        if (data->data()[0] == 0x00)
+        {
+            m_oSRS.importFromWkt((const char *)&(data->data()[4]));
             break;
         }
     }

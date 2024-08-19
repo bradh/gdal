@@ -19,7 +19,7 @@ esac
 
 export SCRIPT_DIR
 TAG_NAME=$(basename "${SCRIPT_DIR}")
-export TARGET_IMAGE=${TARGET_IMAGE:-osgeo/gdal:${TAG_NAME}}
+export TARGET_IMAGE=${TARGET_IMAGE:-silvereye/gdal:${TAG_NAME}}
 
 HAS_PLATFORM=0
 if echo "$*" | grep "\-\-platform" > /dev/null; then
@@ -38,7 +38,7 @@ fi
 
 "${SCRIPT_DIR}/../util.sh" "$@" --test-python
 
-if test "${HAS_PLATFORM}" = "0" -a "${HAS_RELEASE}" = "0" -a "x${TARGET_IMAGE}" = "xosgeo/gdal:ubuntu-small"; then
+if test "${HAS_PLATFORM}" = "0" -a "${HAS_RELEASE}" = "0" -a "x${TARGET_IMAGE}" = "xsilvereye/gdal:ubuntu-small"; then
  "${SCRIPT_DIR}/../util.sh" --platform linux/arm64 "$@" --test-python
 
  if test "$HAS_PUSH" = "1"; then

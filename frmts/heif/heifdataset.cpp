@@ -56,6 +56,8 @@ class GDALHEIFDataset final : public GDALPamDataset
     std::vector<std::unique_ptr<GDALHEIFDataset>> m_apoOvrDS{};
     bool m_bIsThumbnail = false;
     mutable OGRSpatialReference m_oSRS{};
+    bool has_GCPs = false;
+    std::vector<GDAL_GCP> gcps;
 
 #ifdef HAS_CUSTOM_FILE_READER
     heif_reader m_oReader{};
@@ -80,14 +82,11 @@ class GDALHEIFDataset final : public GDALPamDataset
     static GDALDataset *Open(GDALOpenInfo *poOpenInfo);
     const OGRSpatialReference *GetSpatialRef() const override;
     CPLErr GetGeoTransform(double *) override;
+    int GetGCPCount() override;
+    const GDAL_GCP *GetGCPs() override;
+    const OGRSpatialReference *GetGCPSpatialRef() const override;
 };
 
-static const uint8_t GeoHEIFTransformUUID[] = {
-    0x76, 0x3c, 0xf8, 0x38, 0xb6, 0x30, 0x44, 0x0b,
-    0x84, 0xf8, 0xbe, 0x44, 0xbf, 0x99, 0x10, 0xaf};
-static const uint8_t GeoHEIFWkt2UUID[] = {0x13, 0x7a, 0x17, 0x42, 0x75, 0xac,
-                                          0x47, 0x47, 0x82, 0xbc, 0x65, 0x95,
-                                          0x76, 0xe8, 0x67, 0x5b};
 
 /************************************************************************/
 /*                       GDALHEIFRasterBand                             */
@@ -103,6 +102,7 @@ class GDALHEIFRasterBand final : public GDALPamRasterBand
 
     GDALColorInterp GetColorInterpretation() override
     {
+        // TODO: we need to handle multiple cases
         return static_cast<GDALColorInterp>(GCI_RedBand + nBand - 1);
     }
 
@@ -693,7 +693,6 @@ CPLErr GDALHEIFRasterBand::IReadBlock(int, int nBlockYOff, void *pImage)
                 (reinterpret_cast<const GUInt16 *>(
                     pSrcData))[nBand - 1 + i * nBands];
     }
-
     return CE_None;
 }
 
@@ -718,27 +717,31 @@ static double to_double(uint8_t *data, uint32_t index)
     return d;
 }
 
+static double int_as_double(uint8_t *data, uint32_t index)
+{
+    uint32_t v = 0;
+    v |= ((uint64_t)data[index + 0]) << 24;
+    v |= ((uint64_t)data[index + 1]) << 16;
+    v |= ((uint64_t)data[index + 2]) << 8;
+    v |= ((uint64_t)data[index + 3]) << 0;
+    return (double)v;
+}
+
 CPLErr GDALHEIFDataset::GetGeoTransform(double *padfTransform)
 {
     heif_property_id prop_ids[10];
     heif_item_id item_id = heif_image_handle_get_item_id(m_hImageHandle);
     int num_props = heif_item_get_properties_of_type(
-        m_hCtxt, item_id, heif_item_property_type_uuid, &prop_ids[0], 10);
+        m_hCtxt, item_id, (heif_item_property_type)heif_fourcc('m', 't', 'x', 'f'), &prop_ids[0], 10);
 
     for (int i = 0; i < num_props; i++)
     {
-        uint8_t extended_type[16];
-        // TODO: check error
-        heif_item_get_property_uuid_type(m_hCtxt, item_id, prop_ids[i],
-                                         extended_type);
-        if (memcmp(extended_type, GeoHEIFTransformUUID,
-                   sizeof(GeoHEIFTransformUUID)) != 0)
-        {
+        size_t size;
+        heif_error err = heif_item_get_property_raw_size(m_hCtxt, item_id, prop_ids[i], &size);
+        if (err.code != 0) {
             continue;
         }
-        // TODO check error
-        size_t size;
-        heif_item_get_property_raw_size(m_hCtxt, item_id, prop_ids[i], &size);
+        // TODO: this only handles the 2D case.
         if (size != 52)
         {
             continue;
@@ -785,33 +788,103 @@ const OGRSpatialReference *GDALHEIFDataset::GetSpatialRef() const
     heif_property_id prop_ids[10];
     heif_item_id item_id = heif_image_handle_get_item_id(m_hImageHandle);
     int num_props = heif_item_get_properties_of_type(
-        m_hCtxt, item_id, heif_item_property_type_uuid, &prop_ids[0], 10);
+        m_hCtxt, item_id, (heif_item_property_type)heif_fourcc('m', 'c', 'r', 's'), &prop_ids[0], 10);
 
     for (int i = 0; i < num_props; i++)
     {
-        uint8_t extended_type[16];
-        // TODO check error
-        heif_item_get_property_uuid_type(m_hCtxt, item_id, prop_ids[i],
-                                         extended_type);
-        if (memcmp(extended_type, GeoHEIFWkt2UUID, sizeof(GeoHEIFWkt2UUID)) !=
-            0)
-        {
+        size_t size;
+        heif_error err = heif_item_get_property_raw_size(m_hCtxt, item_id, prop_ids[i], &size);
+        if (err.code != 0) {
             continue;
         }
-        // TODO check error
-        size_t size;
-        heif_item_get_property_raw_size(m_hCtxt, item_id, prop_ids[i], &size);
+        if (size == 0) {
+            continue;
+        }
         auto data = std::make_shared<std::vector<uint8_t>>(size);
-        heif_item_get_property_raw_data(m_hCtxt, item_id, prop_ids[i],
-                                        data->data());
+        err = heif_item_get_property_raw_data(m_hCtxt, item_id, prop_ids[i], data->data());
+        if (err.code != 0) {
+            continue;
+        }
         // Match version
         if (data->data()[0] == 0x00)
         {
-            m_oSRS.importFromWkt((const char *)&(data->data()[4]));
+            if ((data->data()[4] == 'w') && (data->data()[5] == 'k') && (data->data()[6] == 't') && (data->data()[7] == '2')) {
+                m_oSRS.importFromWkt((const char *)&(data->data()[8]));
+            }
             break;
         }
     }
     return &m_oSRS;
+}
+
+int GDALHEIFDataset::GetGCPCount()
+{
+    if (!has_GCPs) {
+        return 0;
+    }
+    if (gcps.size() == 0) {
+        // Get the GCPs if we can
+        heif_property_id prop_ids[10];
+        heif_item_id item_id = heif_image_handle_get_item_id(m_hImageHandle);
+        int num_props = heif_item_get_properties_of_type(
+            m_hCtxt, item_id, (heif_item_property_type)heif_fourcc('t', 'i', 'e', 'p'), &prop_ids[0], 10);
+        for (int i = 0; i < num_props; i++)
+        {
+            size_t size;
+            heif_item_get_property_raw_size(m_hCtxt, item_id, prop_ids[i], &size);
+            auto data = std::make_shared<std::vector<uint8_t>>(size);
+            heif_error err = heif_item_get_property_raw_data(m_hCtxt, item_id, prop_ids[i], data->data());
+            if ((err.code != 0)) {
+                continue;
+            }
+            // Match version
+            if (data->data()[0] == 0x00)
+            {
+                uint32_t index = 0;
+                bool is_3D = (data->data()[index + 3] == 0x00);
+                index += 4;
+                uint16_t count = (data->data()[index] << 8) + (data->data()[index + 1]);
+                index += 2;
+                for (uint16_t j = 0; j < count; j++)
+                {
+                    GDAL_GCP gcp;
+                    char szID[32];
+                    snprintf(szID, sizeof(szID), "%d", j);
+                    gcp.pszId = CPLStrdup(szID);
+                    gcp.pszInfo = CPLStrdup("");
+                    gcp.dfGCPPixel = int_as_double(data->data(), index);
+                    index += 4;
+                    gcp.dfGCPLine = int_as_double(data->data(), index);
+                    index += 4;
+                    gcp.dfGCPX = to_double(data->data(), index);
+                    index += 8;
+                    gcp.dfGCPY = to_double(data->data(), index);
+                    index += 8;
+                    if (is_3D) {
+                        gcp.dfGCPZ = to_double(data->data(), index);
+                        index += 8;
+                    } else {
+                        gcp.dfGCPZ = 0.0;
+                    }
+                    gcps.push_back(gcp);
+                }
+                return gcps.size();
+            }
+        }
+        // if we get to here, the property wasn't found, so no GCPs.
+        has_GCPs = false;
+    }
+    return gcps.size();
+}
+
+const GDAL_GCP *GDALHEIFDataset::GetGCPs()
+{
+    return gcps.data();
+}
+
+const OGRSpatialReference *GDALHEIFDataset::GetGCPSpatialRef() const
+{
+    return this->GetSpatialRef();
 }
 
 /************************************************************************/

@@ -34,7 +34,7 @@ RELEASE=no
 ARCH_PLATFORMS="linux/amd64"
 DOCKER_REPO=ghcr.io
 
-GDAL_REPOSITORY=OSGeo/gdal
+GDAL_REPOSITORY=bradh/gdal
 
 while (( "$#" ));
 do
@@ -284,7 +284,7 @@ if test "${RELEASE}" = "yes"; then
 
     if test "${BASE_IMAGE}" != ""; then
         BUILD_ARGS+=("--build-arg" "BASE_IMAGE=${BASE_IMAGE}")
-        if test "${TARGET_IMAGE}" = "osgeo/gdal:ubuntu-full" -o "${TARGET_IMAGE}" = "osgeo/gdal:ubuntu-small"; then
+        if test "${TARGET_IMAGE}" = "osgeo/gdal:ubuntu-full" -o "${TARGET_IMAGE}" = "silvereye/gdal:ubuntu-small"; then
           BUILD_ARGS+=("--build-arg" "TARGET_BASE_IMAGE=${BASE_IMAGE}")
         fi
     fi
@@ -318,7 +318,7 @@ else
 
     IMAGE_NAME_WITH_ARCH="${REPO_IMAGE_NAME}"
     if test "${IMAGE_NAME}" = "osgeo/gdal:ubuntu-full-latest" \
-         -o "${IMAGE_NAME}" = "osgeo/gdal:ubuntu-small-latest" \
+         -o "${IMAGE_NAME}" = "silvereye/gdal:ubuntu-small-latest" \
          -o "${IMAGE_NAME}" = "osgeo/gdal:alpine-small-latest" \
          -o "${IMAGE_NAME}" = "osgeo/gdal:alpine-normal-latest"; then
         if test "${DOCKER_BUILDX}" != "buildx"; then
@@ -398,11 +398,11 @@ EOF
 
     if test "${BASE_IMAGE}" != ""; then
         BUILD_ARGS+=("--build-arg" "BASE_IMAGE=${BASE_IMAGE}")
-        if test "${IMAGE_NAME}" = "osgeo/gdal:ubuntu-full-latest" -o "${IMAGE_NAME}" = "osgeo/gdal:ubuntu-small-latest"; then
+        if test "${IMAGE_NAME}" = "osgeo/gdal:ubuntu-full-latest" -o "${IMAGE_NAME}" = "silvereye/gdal:ubuntu-small-latest"; then
           BUILD_ARGS+=("--build-arg" "TARGET_BASE_IMAGE=${BASE_IMAGE}")
         fi
     else
-      if test "${DOCKER_BUILDX}" != "buildx" -a \( "${IMAGE_NAME}" = "osgeo/gdal:ubuntu-full-latest" -o "${IMAGE_NAME}" = "osgeo/gdal:ubuntu-small-latest" \); then
+      if test "${DOCKER_BUILDX}" != "buildx" -a \( "${IMAGE_NAME}" = "osgeo/gdal:ubuntu-full-latest" -o "${IMAGE_NAME}" = "silvereye/gdal:ubuntu-small-latest" \); then
         if test "${ARCH_PLATFORMS}" = "linux/arm64"; then
           BASE_IMAGE=$(grep "ARG BASE_IMAGE=" ${SCRIPT_DIR}/Dockerfile | sed "s/ARG BASE_IMAGE=//")
           echo "Fetching digest for ${BASE_IMAGE} ${ARCH_PLATFORMS}..."
@@ -435,7 +435,7 @@ EOF
       fi
     fi
 
-    docker $(build_cmd) --network "${BUILD_NETWORK}" "${BUILD_ARGS[@]}" --target builder \
+    docker $(build_cmd) --no-cache --network "${BUILD_NETWORK}" "${BUILD_ARGS[@]}" --target builder \
         -t "${BUILDER_IMAGE_NAME}" "${SCRIPT_DIR}"
 
     docker $(build_cmd) "${BUILD_ARGS[@]}" -t "${IMAGE_NAME_WITH_ARCH}" "${SCRIPT_DIR}"
@@ -474,7 +474,7 @@ EOF
     fi
 
     if test "${IMAGE_NAME}" = "osgeo/gdal:ubuntu-full-latest" \
-         -o "${IMAGE_NAME}" = "osgeo/gdal:ubuntu-small-latest" \
+         -o "${IMAGE_NAME}" = "silvereye/gdal:ubuntu-small-latest" \
          -o "${IMAGE_NAME}" = "osgeo/gdal:alpine-small-latest" \
          -o "${IMAGE_NAME}" = "osgeo/gdal:alpine-normal-latest"; then
         if test "${DOCKER_BUILDX}" != "buildx" -a "${ARCH_PLATFORMS}" = "linux/amd64"; then

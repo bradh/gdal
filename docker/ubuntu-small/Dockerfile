@@ -1,5 +1,5 @@
 ##
-# osgeo/gdal:ubuntu-small
+# silvereye_tech/gdal:ubuntu-small
 
 # This file is available at the option of the licensee under:
 # Public domain
@@ -11,8 +11,8 @@ ARG TARGET_BASE_IMAGE=ubuntu:24.04
 
 FROM $BASE_IMAGE as builder
 
-# Derived from osgeo/proj by Howard Butler <howard@hobu.co>
-LABEL maintainer="Even Rouault <even.rouault@spatialys.com>"
+# Derived from osgeo/proj by Howard Butler <howard@hobu.co> and osgeo/gdal by Even Rouault <even.rouault@spatialys.com>
+LABEL maintainer="Brad Hards <bradh@silvereye.tech>"
 
 ARG TARGET_ARCH=
 RUN echo ${TARGET_ARCH}
@@ -45,6 +45,14 @@ RUN . /buildscripts/bh-set-envvars.sh \
             git make cmake wget unzip libtool automake \
             zlib1g-dev${APT_ARCH_SUFFIX} libsqlite3-dev${APT_ARCH_SUFFIX} pkg-config sqlite3 libcurl4-openssl-dev${APT_ARCH_SUFFIX} \
             libtiff-dev${APT_ARCH_SUFFIX} \
+    && rm -rf /var/lib/apt/lists/*
+
+# Setup build env for libheif
+RUN . /buildscripts/bh-set-envvars.sh \
+    && apt-get update -y \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing --no-install-recommends \
+            libde265-dev${APT_ARCH_SUFFIX} libx265-dev${APT_ARCH_SUFFIX} libx265-199${APT_ARCH_SUFFIX} libaom-dev${APT_ARCH_SUFFIX} \
+            libopenjp2-7-dev${APT_ARCH_SUFFIX} libopenjp2-tools${APT_ARCH_SUFFIX}  \
     && rm -rf /var/lib/apt/lists/*
 
 # Setup build env for GDAL
@@ -90,10 +98,32 @@ RUN \
     && rm -f *.zip
 
 RUN apt-get update -y \
-    && apt-get install -y --fix-missing --no-install-recommends rsync ccache \
+    && apt-get install -y --fix-missing --no-install-recommends ccache \
     && rm -rf /var/lib/apt/lists/*
-ARG RSYNC_REMOTE
 
+# Build libheif
+ARG HEIF_VERSION=master
+RUN . /buildscripts/bh-set-envvars.sh \
+    && mkdir heif \
+    && wget -q https://github.com/strukturag/libheif//archive/${HEIF_VERSION}.tar.gz -O - \
+        | tar xz -C heif --strip-components=1 \
+    && cd heif \
+    && mkdir build \
+    && cd build \
+    && CFLAGS='-O2' CXXFLAGS='-O2' \
+        cmake .. \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_TESTING=OFF \
+        -DWITH_UNCOMPRESSED_CODEC=ON \
+        -DWITH_OpenJPEG_DECODER=ON \
+        -DWITH_OpenJPEG_ENCODER=ON \
+    && make -j$(nproc) \
+    && make install DESTDIR="/build" \
+    && cd .. \
+    && cd .. \
+    && rm -rf heif
+  
 # Build PROJ
 ARG PROJ_VERSION=master
 RUN . /buildscripts/bh-set-envvars.sh \
@@ -101,15 +131,6 @@ RUN . /buildscripts/bh-set-envvars.sh \
     && wget -q https://github.com/OSGeo/PROJ/archive/${PROJ_VERSION}.tar.gz -O - \
         | tar xz -C proj --strip-components=1 \
     && cd proj \
-    && if test "${RSYNC_REMOTE:-}" != ""; then \
-        echo "Downloading cache..."; \
-        rsync -ra ${RSYNC_REMOTE}/proj/${GCC_ARCH}/ $HOME/; \
-        echo "Finished"; \
-        export CC="ccache ${GCC_ARCH}-linux-gnu-gcc"; \
-        export CXX="ccache ${GCC_ARCH}-linux-gnu-g++"; \
-        export PROJ_DB_CACHE_DIR="$HOME/.ccache"; \
-        ccache -M 100M; \
-    fi \
     && CFLAGS='-DPROJ_RENAME_SYMBOLS -O2' CXXFLAGS='-DPROJ_RENAME_SYMBOLS -DPROJ_INTERNAL_CPP_NAMESPACE -O2' \
         cmake . \
         -DBUILD_SHARED_LIBS=ON \
@@ -118,15 +139,6 @@ RUN . /buildscripts/bh-set-envvars.sh \
         -DBUILD_TESTING=OFF \
     && make -j$(nproc) \
     && make install DESTDIR="/build" \
-    && if test "${RSYNC_REMOTE:-}" != ""; then \
-        ccache -s; \
-        echo "Uploading cache..."; \
-        rsync -ra --delete $HOME/.ccache ${RSYNC_REMOTE}/proj/${GCC_ARCH}/; \
-        echo "Finished"; \
-        rm -rf $HOME/.ccache; \
-        unset CC; \
-        unset CXX; \
-    fi \
     && cd .. \
     && rm -rf proj \
     && PROJ_SO=$(readlink -f /build${PROJ_INSTALL_PREFIX}/lib/libproj.so | awk 'BEGIN {FS="libproj.so."} {print $2}') \
@@ -147,11 +159,11 @@ RUN . /buildscripts/bh-set-envvars.sh \
 ARG GDAL_VERSION=master
 ARG GDAL_RELEASE_DATE
 ARG GDAL_BUILD_IS_RELEASE
-ARG GDAL_REPOSITORY=OSGeo/gdal
+ARG GDAL_REPOSITORY=bradh/gdal
 
 RUN . /buildscripts/bh-set-envvars.sh \
     && if test "${GDAL_VERSION}" = "master"; then \
-        export GDAL_VERSION=$(curl -Ls https://api.github.com/repos/${GDAL_REPOSITORY}/commits/HEAD -H "Accept: application/vnd.github.VERSION.sha"); \
+        export GDAL_VERSION=$(curl -Ls https://api.github.com/repos/${GDAL_REPOSITORY}/commits/geoheif -H "Accept: application/vnd.github.VERSION.sha"); \
         export GDAL_RELEASE_DATE=$(date "+%Y%m%d"); \
     fi \
     && if test "x${GDAL_BUILD_IS_RELEASE:-}" = "x"; then \
@@ -161,43 +173,24 @@ RUN . /buildscripts/bh-set-envvars.sh \
     && wget -q https://github.com/${GDAL_REPOSITORY}/archive/${GDAL_VERSION}.tar.gz -O - \
         | tar xz -C gdal --strip-components=1 \
     && cd gdal \
-    && if test "${RSYNC_REMOTE:-}" != ""; then \
-        echo "Downloading cache..."; \
-        rsync -ra ${RSYNC_REMOTE}/gdal/${GCC_ARCH}/ $HOME/; \
-        echo "Finished"; \
-        # Little trick to avoid issues with Python bindings
-        printf "#!/bin/sh\nccache %s-linux-gnu-gcc \$*" "${GCC_ARCH}" > ccache_gcc.sh; \
-        chmod +x ccache_gcc.sh; \
-        printf "#!/bin/sh\nccache %s-linux-gnu-g++ \$*" "${GCC_ARCH}" > ccache_g++.sh; \
-        chmod +x ccache_g++.sh; \
-        export CC=$PWD/ccache_gcc.sh; \
-        export CXX=$PWD/ccache_g++.sh; \
-        ccache -M 1G; \
-    fi \
     && mkdir build \
     && cd build \
     # -Wno-psabi avoid 'note: parameter passing for argument of type 'std::pair<double, double>' when C++17 is enabled changed to match C++14 in GCC 10.1' on arm64
     && CFLAGS='-DPROJ_RENAME_SYMBOLS -O2' CXXFLAGS='-DPROJ_RENAME_SYMBOLS -DPROJ_INTERNAL_CPP_NAMESPACE -O2 -Wno-psabi' \
-       cmake .. \
+    PKG_CONFIG_PATH="/build/usr/local/lib/pkgconfig/" cmake .. \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DGDAL_FIND_PACKAGE_PROJ_MODE=MODULE \
         -DPROJ_INCLUDE_DIR="/build${PROJ_INSTALL_PREFIX-/usr/local}/include" \
         -DPROJ_LIBRARY="/build${PROJ_INSTALL_PREFIX-/usr/local}/lib/libinternalproj.so" \
         -DGDAL_USE_TIFF_INTERNAL=ON \
         -DGDAL_USE_GEOTIFF_INTERNAL=ON \
+        -DHEIF_INCLUDE_DIR="/build/usr/local/include" \
+        -DHEIF_LIBRARY="/build/usr/local/lib/libheif.so" \
+        -DGDAL_ENABLE_DRIVER_HEIF=ON \
         -DBUILD_TESTING=OFF \
     && make -j$(nproc) \
     && make install DESTDIR="/build" \
     && cd .. \
-    && if test "${RSYNC_REMOTE:-}" != ""; then \
-        ccache -s; \
-        echo "Uploading cache..."; \
-        rsync -ra --delete $HOME/.ccache ${RSYNC_REMOTE}/gdal/${GCC_ARCH}/; \
-        echo "Finished"; \
-        rm -rf $HOME/.ccache; \
-        unset CC; \
-        unset CXX; \
-    fi \
     && cd .. \
     && rm -rf gdal \
     && mkdir -p /build_gdal_python/usr/lib \
@@ -239,6 +232,7 @@ RUN apt-get update -y \
         libwebp7 libpng16-16 \
         libdeflate0 \
         libzstd1 bash libpq5 libssl3 libopenjp2-7 libspatialite8 \
+        libx265-199 libaom3 libde265-0 \
         # pil for antialias option of gdal2tiles
         python3-pil \
     && rm -rf /var/lib/apt/lists/*

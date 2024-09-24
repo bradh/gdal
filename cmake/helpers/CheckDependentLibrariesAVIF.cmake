@@ -8,8 +8,8 @@ check_cxx_source_compiles(
     #include <avif/avif.h>
     int main()
     {
-        // avifImage *image;
-        // image->numProperties;
+        avifImage *image;
+        image->numProperties;
         return 0;
     }
     "

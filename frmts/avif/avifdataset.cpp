@@ -64,7 +64,7 @@ class GDALAVIFDataset final : public GDALPamDataset
     GDALAVIFDataset(const GDALAVIFDataset &) = delete;
     GDALAVIFDataset &operator=(const GDALAVIFDataset &) = delete;
 
-#if AVIF_HAS_OPAQUE_PROPERTIES
+#ifdef AVIF_HAS_OPAQUE_PROPERTIES
   protected:
     void processProperties();
     void getSRS() const;
@@ -84,7 +84,7 @@ class GDALAVIFDataset final : public GDALPamDataset
 #endif
 
   public:
-#if AVIF_HAS_OPAQUE_PROPERTIES
+#ifdef AVIF_HAS_OPAQUE_PROPERTIES
     GDALAVIFDataset() : gcps()
 #else
     GDALAVIFDataset()
@@ -106,7 +106,7 @@ class GDALAVIFDataset final : public GDALPamDataset
                                    char **papszOptions,
                                    GDALProgressFunc pfnProgress,
                                    void *pProgressData);
-#if AVIF_HAS_OPAQUE_PROPERTIES
+#ifdef AVIF_HAS_OPAQUE_PROPERTIES
     const OGRSpatialReference *GetSpatialRef() const override;
     virtual CPLErr GetGeoTransform(double *) override;
     int GetGCPCount() override;
@@ -389,7 +389,7 @@ GDALAVIFIO::GDALAVIFIO(VSIVirtualHandleUniquePtr fpIn) : fp(std::move(fpIn))
     return AVIF_RESULT_OK;
 }
 
-#if AVIF_HAS_OPAQUE_PROPERTIES
+#ifdef AVIF_HAS_OPAQUE_PROPERTIES
 /************************************************************************/
 /*                          GetSpatialRef()                             */
 /************************************************************************/

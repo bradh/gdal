@@ -62,6 +62,11 @@ def _has_read_write_support_for(format):
     )
 
 
+def _has_geoheif_support():
+    drv = gdal.GetDriverByName("HEIF")
+    return drv and drv.GetMetadataItem("SUPPORTS_GEOHEIF", "HEIF")
+
+
 @pytest.mark.parametrize("endianness", ["big_endian", "little_endian"])
 def test_heif_exif_endian(endianness):
     if not _has_hevc_decoding_support():

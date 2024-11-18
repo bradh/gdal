@@ -1092,6 +1092,9 @@ void GDALRegister_HEIF()
 #ifdef LIBHEIF_SUPPORTS_TILES
         poDriver->SetMetadataItem("SUPPORTS_TILES", "YES", "HEIF");
 #endif
+#if LIBHEIF_NUMERIC_VERSION >= BUILD_LIBHEIF_VERSION(1, 19, 0)
+        poDriver->SetMetadataItem("SUPPORTS_GEOHEIF", "YES", "HEIF");
+#endif
         poDriver->pfnOpen = GDALHEIFDataset::OpenHEIF;
 
 #ifdef HAS_CUSTOM_FILE_WRITER

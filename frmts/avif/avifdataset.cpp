@@ -1452,5 +1452,9 @@ void GDALRegister_AVIF()
     if (bMayHaveWriteSupport)
         poDriver->pfnCreateCopy = GDALAVIFDataset::CreateCopy;
 
+#ifdef AVIF_HAS_OPAQUE_PROPERTIES
+    poDriver->SetMetadataItem("SUPPORTS_GEOHEIF", "YES", "AVIF");
+#endif
+
     poDM->RegisterDriver(poDriver.release());
 }

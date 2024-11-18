@@ -28,6 +28,11 @@ def has_avif_encoder():
     return drv is not None and drv.GetMetadataItem("DMD_CREATIONOPTIONLIST") is not None
 
 
+def _has_geoheif_support():
+    drv = gdal.GetDriverByName("AVIF")
+    return drv and drv.GetMetadataItem("SUPPORTS_GEOHEIF", "AVIF")
+
+
 def test_avif_subdatasets(tmp_path):
 
     filename = str(tmp_path / "out.avif")
@@ -257,6 +262,10 @@ def test_avif_creation_errors(tmp_vsimem):
         gdal.GetDriverByName("AVIF").CreateCopy("/i_do/not/exist.avif", src_ds)
 
 
+@pytest.mark.skipif(
+    not _has_geoheif_support(),
+    reason="libavif does not support opaque properties like geoheif",
+)
 def test_avif_geoheif():
     ds = gdal.Open("data/heif/geo_small.avif")
     assert ds

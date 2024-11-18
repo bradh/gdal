@@ -42,6 +42,12 @@ class GDALHEIFDataset final : public GDALPamDataset
     heif_image_tiling m_tiling;
 #endif
 
+#if LIBHEIF_NUMERIC_VERSION >= BUILD_LIBHEIF_VERSION(1, 19, 0)
+    mutable OGRSpatialReference m_oSRS{};
+    bool has_GCPs = false;
+    std::vector<GDAL_GCP> gcps;
+#endif
+
 #ifdef HAS_CUSTOM_FILE_READER
     heif_reader m_oReader{};
     VSILFILE *m_fpL = nullptr;
@@ -71,6 +77,14 @@ class GDALHEIFDataset final : public GDALPamDataset
     static GDALDataset *OpenHEIF(GDALOpenInfo *poOpenInfo);
 #if LIBHEIF_NUMERIC_VERSION >= BUILD_LIBHEIF_VERSION(1, 12, 0)
     static GDALDataset *OpenAVIF(GDALOpenInfo *poOpenInfo);
+#endif
+
+#if LIBHEIF_NUMERIC_VERSION >= BUILD_LIBHEIF_VERSION(1, 19, 0)
+    const OGRSpatialReference *GetSpatialRef() const override;
+    CPLErr GetGeoTransform(double *) override;
+    int GetGCPCount() override;
+    const GDAL_GCP *GetGCPs() override;
+    const OGRSpatialReference *GetGCPSpatialRef() const override;
 #endif
 
 #ifdef HAS_CUSTOM_FILE_WRITER

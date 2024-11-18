@@ -408,8 +408,6 @@ CPLErr GDALAVIFDataset::GetGeoTransform(double *padfTransform)
         return CE_None;
     }
 
-    processProperties();
-
     if (!m_bHasGeoTransform)
     {
         return CE_Failure;
@@ -453,14 +451,22 @@ void GDALAVIFDataset::extractSRS(const uint8_t *payload, size_t length) const
     {
         return;
     }
+    // TODO: make sure it is null terminated
     if ((!memcmp(&(payload[4]), "wkt2", 4)))
     {
-        // TODO: make sure its null terminated...
         m_oSRS.importFromWkt(reinterpret_cast<const char *>(&(payload[8])));
+    }
+    else if (!memcmp(&(payload[4]), "crsu", 4))
+    {
+        m_oSRS.importFromCRSURL(reinterpret_cast<const char *>(&(payload[8])));
+    }
+    else if (!memcmp(&(payload[4]), "curi", 4))
+    {
+        // TODO
     }
     else
     {
-        // TODO: add CRS encoding
+        return;
     }
 }
 
@@ -701,6 +707,10 @@ bool GDALAVIFDataset::Init(GDALOpenInfo *poOpenInfo)
                            static_cast<int>(m_decoder->image->depth)));
     }
 
+#ifdef AVIF_HAS_OPAQUE_PROPERTIES
+    processProperties();
+#endif
+
     if (m_iPart == 0)
     {
         if (m_decoder->imageCount > 1)
@@ -870,7 +880,7 @@ GDALDataset *GDALAVIFDataset::CreateCopy(const char *pszFilename,
     if (nBands != 1 && nBands != 2 && nBands != 3 && nBands != 4)
     {
         CPLError(CE_Failure, CPLE_NotSupported,
-                 "Unsupported number of bands: only 1 (Gray), 2 (Gray+Alpha), "
+                 "Unsupported number of bands: only 1 (Gray), 2 (Graph+Alpha) "
                  "3 (RGB) or 4 (RGBA) bands are supported");
         return nullptr;
     }

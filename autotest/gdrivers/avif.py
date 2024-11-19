@@ -264,14 +264,74 @@ def test_avif_creation_errors(tmp_vsimem):
 
 @pytest.mark.skipif(
     not _has_geoheif_support(),
-    reason="libavif does not support opaque properties like geoheif",
+    reason="this libavif does not support opaque properties like geoheif",
 )
-def test_avif_geoheif():
+def test_avif_geoheif_wkt2():
     ds = gdal.Open("data/heif/geo_small.avif")
     assert ds
     assert ds.RasterCount == 3
     assert ds.RasterXSize == 128
     assert ds.RasterYSize == 76
+    assert ds.GetMetadataItem("NAME", "DESCRIPTION_en-AU") == "Copyright Statement"
+    assert (
+        ds.GetMetadataItem("DESCRIPTION", "DESCRIPTION_en-AU")
+        == 'CCBY "Jacobs Group (Australia) Pty Ltd and Australian Capital Territory"'
+    )
+    assert ds.GetMetadataItem("TAGS", "DESCRIPTION_en-AU") == "copyright"
+    assert ds.GetGeoTransform() is not None
+    assert ds.GetGeoTransform() == pytest.approx(
+        [691000.0, 0.1, 0.0, 6090000.0, 0.0, -0.1]
+    )
+    assert ds.GetGCPCount() == 1
+    gcp = ds.GetGCPs()[0]
+    assert (
+        gcp.GCPPixel == pytest.approx(0, abs=1e-5)
+        and gcp.GCPLine == pytest.approx(0, abs=1e-5)
+        and gcp.GCPX == pytest.approx(691000.0, abs=1e-5)
+        and gcp.GCPY == pytest.approx(6090000.0, abs=1e-5)
+        and gcp.GCPZ == pytest.approx(0, abs=1e-5)
+    )
+
+@pytest.mark.skipif(
+    not _has_geoheif_support(),
+    reason="this libavif does not support opaque properties like geoheif",
+)
+def test_avif_geoheif_uri():
+    ds = gdal.Open("data/heif/geo_crsu.avif")
+    assert ds
+    assert ds.RasterCount == 3
+    assert ds.RasterXSize == 256
+    assert ds.RasterYSize == 64
+    assert ds.GetMetadataItem("NAME", "DESCRIPTION_en-AU") == "Copyright Statement"
+    assert (
+        ds.GetMetadataItem("DESCRIPTION", "DESCRIPTION_en-AU")
+        == 'CCBY "Jacobs Group (Australia) Pty Ltd and Australian Capital Territory"'
+    )
+    assert ds.GetMetadataItem("TAGS", "DESCRIPTION_en-AU") == "copyright"
+    assert ds.GetGeoTransform() is not None
+    assert ds.GetGeoTransform() == pytest.approx(
+        [691000.0, 0.1, 0.0, 6090000.0, 0.0, -0.1]
+    )
+    assert ds.GetGCPCount() == 1
+    gcp = ds.GetGCPs()[0]
+    assert (
+        gcp.GCPPixel == pytest.approx(0, abs=1e-5)
+        and gcp.GCPLine == pytest.approx(0, abs=1e-5)
+        and gcp.GCPX == pytest.approx(691000.0, abs=1e-5)
+        and gcp.GCPY == pytest.approx(6090000.0, abs=1e-5)
+        and gcp.GCPZ == pytest.approx(0, abs=1e-5)
+    )
+
+@pytest.mark.skipif(
+    not _has_geoheif_support(),
+    reason="this libavif does not support opaque properties like geoheif",
+)
+def test_avif_geoheif_curie():
+    ds = gdal.Open("data/heif/geo_curi.avif")
+    assert ds
+    assert ds.RasterCount == 3
+    assert ds.RasterXSize == 256
+    assert ds.RasterYSize == 64
     assert ds.GetMetadataItem("NAME", "DESCRIPTION_en-AU") == "Copyright Statement"
     assert (
         ds.GetMetadataItem("DESCRIPTION", "DESCRIPTION_en-AU")

@@ -632,6 +632,8 @@ def test_heif_create_copy_defaults(tmp_path):
 def test_avif_geoheif():
     if not _has_avif_decoding_support():
         pytest.skip()
+    if not _has_geoheif_support():
+        pytest.skip()
 
     ds = gdal.Open("data/heif/geo_small.avif")
     assert ds

@@ -970,7 +970,7 @@ int GDALHEIFDataset::GetGCPCount()
                     }
                     gcps.push_back(gcp);
                 }
-                return gcps.size();
+                return (int)gcps.size();
             }
         }
         // if we get to here, the property wasn't found, so no GCPs.

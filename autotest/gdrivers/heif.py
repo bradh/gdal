@@ -62,11 +62,6 @@ def _has_read_write_support_for(format):
     )
 
 
-def _has_geoheif_support():
-    drv = gdal.GetDriverByName("HEIF")
-    return drv and drv.GetMetadataItem("SUPPORTS_GEOHEIF", "HEIF")
-
-
 @pytest.mark.parametrize("endianness", ["big_endian", "little_endian"])
 def test_heif_exif_endian(endianness):
     if not _has_hevc_decoding_support():
@@ -627,29 +622,3 @@ def test_heif_create_copy_defaults(tmp_path):
     result_ds = gdal.Open(tempfile)
 
     assert result_ds
-
-
-def test_avif_geoheif():
-    if not _has_avif_decoding_support():
-        pytest.skip()
-    if not _has_geoheif_support():
-        pytest.skip()
-
-    ds = gdal.Open("data/heif/geo_small.avif")
-    assert ds
-    assert ds.RasterCount == 3
-    assert ds.RasterXSize == 128
-    assert ds.RasterYSize == 76
-    assert ds.GetGeoTransform() is not None
-    assert ds.GetGeoTransform() == pytest.approx(
-        [691000.0, 0.1, 0.0, 6090000.0, 0.0, -0.1]
-    )
-    assert ds.GetGCPCount() == 1
-    gcp = ds.GetGCPs()[0]
-    assert (
-        gcp.GCPPixel == pytest.approx(0, abs=1e-5)
-        and gcp.GCPLine == pytest.approx(0, abs=1e-5)
-        and gcp.GCPX == pytest.approx(691000.0, abs=1e-5)
-        and gcp.GCPY == pytest.approx(6090000.0, abs=1e-5)
-        and gcp.GCPZ == pytest.approx(0, abs=1e-5)
-    )

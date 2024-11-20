@@ -61,6 +61,9 @@ if __name__ == "__main__":
         assert ds.GetGeoTransform() == pytest.approx(
             [691000.0, 0.1, 0.0, 6090000.0, 0.0, -0.1]
         )
+        print()
+        print("GCPs from avif_heif: ", ds.GetGCPCount())
+        print()
         assert ds.GetGCPCount() == 1
         gcp = ds.GetGCPs()[0]
         assert (

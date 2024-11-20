@@ -44,7 +44,7 @@ class GDALHEIFDataset final : public GDALPamDataset
 
 #if LIBHEIF_NUMERIC_VERSION >= BUILD_LIBHEIF_VERSION(1, 19, 0)
     mutable OGRSpatialReference m_oSRS{};
-    bool has_GCPs = false;
+    bool has_GCPs = true; // lets be optimistic the first time
     std::vector<GDAL_GCP> gcps;
 #endif
 
@@ -84,6 +84,7 @@ class GDALHEIFDataset final : public GDALPamDataset
     CPLErr GetGeoTransform(double *) override;
     int GetGCPCount() override;
     const GDAL_GCP *GetGCPs() override;
+    void extractSRS(const uint8_t *payload, size_t length) const;
     const OGRSpatialReference *GetGCPSpatialRef() const override;
 #endif
 

@@ -897,15 +897,51 @@ const OGRSpatialReference *GDALHEIFDataset::GetSpatialRef() const
         // Match version
         if (data->data()[0] == 0x00)
         {
-            if ((data->data()[4] == 'w') && (data->data()[5] == 'k') &&
-                (data->data()[6] == 't') && (data->data()[7] == '2'))
-            {
-                m_oSRS.importFromWkt((const char *)&(data->data()[8]));
-            }
+            extractSRS(data->data(), data->size());
             break;
         }
     }
     return &m_oSRS;
+}
+
+void GDALHEIFDataset::extractSRS(const uint8_t *payload, size_t length) const
+{
+    // TODO: more sophisticated length checks
+    if (length < 6)
+    {
+        return;
+    }
+    std::string crsEncoding(payload + 4, payload + 8);
+    std::string crs(payload + 8, payload + length);
+    std::cout << "crs: " << crs << std::endl;
+    if (crsEncoding == "wkt2")
+    {
+        m_oSRS.importFromWkt(crs.c_str());
+    }
+    else if (crsEncoding == "crsu")
+    {
+        m_oSRS.importFromCRSURL(crs.c_str());
+    }
+    else if (crsEncoding == "curi")
+    {
+        if ((crs.at(0) != '[') || (crs.at(crs.length() -1) != ']')) {
+            return;
+        }
+        std::cout << "safe CURIE: " << crs << std::endl;
+        std::string curie = crs.substr(1, crs.length() - 2);
+        std::cout << "curie: " << curie << std::endl;
+        std::string authority = "EPSG"; // TODO
+        std::string code = "32755"; // TODO
+        std::string osURL("http://www.opengis.net/def/crs/");
+        osURL.append(authority);
+        osURL += "/0/";
+        osURL.append(code);
+        m_oSRS.importFromCRSURL(osURL.c_str());
+    }
+    else
+    {
+        return;
+    }
 }
 
 int GDALHEIFDataset::GetGCPCount()

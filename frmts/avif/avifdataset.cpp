@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <vector>
+#include <iostream>
 
 constexpr const char *DEFAULT_QUALITY_STR = "60";
 constexpr const char *DEFAULT_QUALITY_ALPHA_STR = "100";
@@ -446,23 +447,36 @@ void GDALAVIFDataset::processProperties()
 
 void GDALAVIFDataset::extractSRS(const uint8_t *payload, size_t length) const
 {
-    // TODO: more sophisticated length checks
     if (length < 6)
     {
         return;
     }
-    // TODO: make sure it is null terminated
-    if ((!memcmp(&(payload[4]), "wkt2", 4)))
+    std::string crsEncoding(payload + 4, payload + 8);
+    // std::cout << "crsEncoding: " << crsEncoding << std::endl;
+    std::string crs(payload + 8, payload + length - 1);
+    // std::cout << "crs: |" << crs << "|" << std::endl;
+    if (crsEncoding == "wkt2")
     {
-        m_oSRS.importFromWkt(reinterpret_cast<const char *>(&(payload[8])));
+        m_oSRS.importFromWkt(crs.c_str());
     }
-    else if (!memcmp(&(payload[4]), "crsu", 4))
+    else if (crsEncoding == "crsu")
     {
-        m_oSRS.importFromCRSURL(reinterpret_cast<const char *>(&(payload[8])));
+        m_oSRS.importFromCRSURL(crs.c_str());
     }
-    else if (!memcmp(&(payload[4]), "curi", 4))
+    else if (crsEncoding == "curi")
     {
-        // TODO
+        if ((crs.at(0) != '[') || (crs.at(crs.length() -1) != ']')) {
+            return;
+        }
+        std::string curie = crs.substr(1, crs.length() - 2);
+        std::size_t colon_separator = curie.find(':');
+        std::string authority = curie.substr(0, colon_separator);
+        std::string code = curie.substr(colon_separator + 1);
+        std::string osURL("http://www.opengis.net/def/crs/");
+        osURL.append(authority);
+        osURL += "/0/";
+        osURL.append(code);
+        m_oSRS.importFromCRSURL(osURL.c_str());
     }
     else
     {

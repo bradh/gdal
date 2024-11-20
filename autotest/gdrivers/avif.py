@@ -310,14 +310,14 @@ def test_avif_geoheif_uri():
     assert ds.GetMetadataItem("TAGS", "DESCRIPTION_en-AU") == "copyright"
     assert ds.GetGeoTransform() is not None
     assert ds.GetGeoTransform() == pytest.approx(
-        [691000.0, 0.1, 0.0, 6090000.0, 0.0, -0.1]
+        [691051.2, 0.1, 0.0, 6090000.0, 0.0, -0.1]
     )
     assert ds.GetGCPCount() == 1
     gcp = ds.GetGCPs()[0]
     assert (
         gcp.GCPPixel == pytest.approx(0, abs=1e-5)
         and gcp.GCPLine == pytest.approx(0, abs=1e-5)
-        and gcp.GCPX == pytest.approx(691000.0, abs=1e-5)
+        and gcp.GCPX == pytest.approx(691051.2, abs=1e-5)
         and gcp.GCPY == pytest.approx(6090000.0, abs=1e-5)
         and gcp.GCPZ == pytest.approx(0, abs=1e-5)
     )
@@ -340,14 +340,14 @@ def test_avif_geoheif_curie():
     assert ds.GetMetadataItem("TAGS", "DESCRIPTION_en-AU") == "copyright"
     assert ds.GetGeoTransform() is not None
     assert ds.GetGeoTransform() == pytest.approx(
-        [691000.0, 0.1, 0.0, 6090000.0, 0.0, -0.1]
+        [691051.2, 0.1, 0.0, 6090000.0, 0.0, -0.1]
     )
     assert ds.GetGCPCount() == 1
     gcp = ds.GetGCPs()[0]
     assert (
         gcp.GCPPixel == pytest.approx(0, abs=1e-5)
         and gcp.GCPLine == pytest.approx(0, abs=1e-5)
-        and gcp.GCPX == pytest.approx(691000.0, abs=1e-5)
+        and gcp.GCPX == pytest.approx(691051.2, abs=1e-5)
         and gcp.GCPY == pytest.approx(6090000.0, abs=1e-5)
         and gcp.GCPZ == pytest.approx(0, abs=1e-5)
     )

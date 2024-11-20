@@ -292,6 +292,7 @@ def test_avif_geoheif_wkt2():
         and gcp.GCPZ == pytest.approx(0, abs=1e-5)
     )
 
+
 @pytest.mark.skipif(
     not _has_geoheif_support(),
     reason="this libavif does not support opaque properties like geoheif",
@@ -321,6 +322,7 @@ def test_avif_geoheif_uri():
         and gcp.GCPY == pytest.approx(6090000.0, abs=1e-5)
         and gcp.GCPZ == pytest.approx(0, abs=1e-5)
     )
+
 
 @pytest.mark.skipif(
     not _has_geoheif_support(),

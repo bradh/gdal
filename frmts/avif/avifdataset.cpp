@@ -413,7 +413,7 @@ void GDALAVIFDataset::processProperties()
         else if (!memcmp(prop->boxtype, "mtxf", 4))
         {
             geoHEIF.setModelTransformation(prop->boxPayload.data,
-                                       prop->boxPayload.size);
+                                           prop->boxPayload.size);
         }
         else if (!memcmp(prop->boxtype, "tiep", 4))
         {
@@ -447,7 +447,8 @@ void GDALAVIFDataset::extractSRS(const uint8_t *payload, size_t length) const
     }
     else if (crsEncoding == "curi")
     {
-        if ((crs.at(0) != '[') || (crs.at(crs.length() -1) != ']')) {
+        if ((crs.at(0) != '[') || (crs.at(crs.length() - 1) != ']'))
+        {
             return;
         }
         std::string curie = crs.substr(1, crs.length() - 2);

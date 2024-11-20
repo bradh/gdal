@@ -61,9 +61,11 @@ def _has_read_write_support_for(format):
         and drv.GetMetadataItem("SUPPORTS_" + format + "_WRITE", "HEIF")
     )
 
+
 def _has_geoheif_support():
     drv = gdal.GetDriverByName("HEIF")
     return drv and drv.GetMetadataItem("SUPPORTS_GEOHEIF", "HEIF")
+
 
 @pytest.mark.parametrize("endianness", ["big_endian", "little_endian"])
 def test_heif_exif_endian(endianness):
@@ -626,6 +628,7 @@ def test_heif_create_copy_defaults(tmp_path):
 
     assert result_ds
 
+
 @pytest.mark.skipif(
     not _has_geoheif_support(),
     reason="this libheif does not support opaque properties like geoheif",
@@ -656,6 +659,7 @@ def test_heif_geoheif_wkt2():
         and gcp.GCPZ == pytest.approx(0, abs=1e-5)
     )
 
+
 @pytest.mark.skipif(
     not _has_geoheif_support(),
     reason="this libheif does not support opaque properties like geoheif",
@@ -685,6 +689,7 @@ def test_heif_geoheif_uri():
         and gcp.GCPY == pytest.approx(6090000.0, abs=1e-5)
         and gcp.GCPZ == pytest.approx(0, abs=1e-5)
     )
+
 
 @pytest.mark.skipif(
     not _has_geoheif_support(),

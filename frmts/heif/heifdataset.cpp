@@ -418,23 +418,31 @@ void GDALHEIFDataset::ReadUserDescription()
     constexpr int MAX_PROPERTIES = 50;
     heif_item_id item_id = heif_image_handle_get_item_id(m_hImageHandle);
     heif_property_id properties[MAX_PROPERTIES];
-    int nProps = heif_item_get_properties_of_type(m_hCtxt, item_id, heif_item_property_type_user_description, properties, MAX_PROPERTIES);
+    int nProps = heif_item_get_properties_of_type(
+        m_hCtxt, item_id, heif_item_property_type_user_description, properties,
+        MAX_PROPERTIES);
 
     heif_property_user_description *user_description = nullptr;
-    for (int i = 0; i < nProps; i++) {
-        heif_error err = heif_item_get_property_user_description(m_hCtxt, item_id, properties[i], &user_description);
-        if (err.code == 0) {
+    for (int i = 0; i < nProps; i++)
+    {
+        heif_error err = heif_item_get_property_user_description(
+            m_hCtxt, item_id, properties[i], &user_description);
+        if (err.code == 0)
+        {
             std::string domain = "DESCRIPTION";
             if (strlen(user_description->lang) != 0)
             {
                 domain += "_";
                 domain += user_description->lang;
             }
-            GDALDataset::SetMetadataItem("NAME", user_description->name, domain.c_str());
-            GDALDataset::SetMetadataItem("DESCRIPTION", user_description->description, domain.c_str());
+            GDALDataset::SetMetadataItem("NAME", user_description->name,
+                                         domain.c_str());
+            GDALDataset::SetMetadataItem(
+                "DESCRIPTION", user_description->description, domain.c_str());
             if (strlen(user_description->tags) != 0)
             {
-                GDALDataset::SetMetadataItem("TAGS", user_description->tags, domain.c_str());
+                GDALDataset::SetMetadataItem("TAGS", user_description->tags,
+                                             domain.c_str());
             }
             heif_property_user_description_release(user_description);
         }
@@ -886,7 +894,8 @@ const OGRSpatialReference *GDALHEIFDataset::GetSpatialRef() const
 
 int GDALHEIFDataset::GetGCPCount()
 {
-    if (geoHEIF.has_GCPs()) {
+    if (geoHEIF.has_GCPs())
+    {
         return geoHEIF.GetGCPCount();
     }
     // Get the GCPs if we can
@@ -894,13 +903,12 @@ int GDALHEIFDataset::GetGCPCount()
     heif_item_id item_id = heif_image_handle_get_item_id(m_hImageHandle);
     int num_props = heif_item_get_properties_of_type(
         m_hCtxt, item_id,
-        (heif_item_property_type)heif_fourcc('t', 'i', 'e', 'p'),
-        &prop_ids[0], 10);
+        (heif_item_property_type)heif_fourcc('t', 'i', 'e', 'p'), &prop_ids[0],
+        10);
     for (int i = 0; i < num_props; i++)
     {
         size_t size;
-        heif_item_get_property_raw_size(m_hCtxt, item_id, prop_ids[i],
-                                        &size);
+        heif_item_get_property_raw_size(m_hCtxt, item_id, prop_ids[i], &size);
         auto data = std::make_shared<std::vector<uint8_t>>(size);
         heif_error err = heif_item_get_property_raw_data(
             m_hCtxt, item_id, prop_ids[i], data->data());

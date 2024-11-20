@@ -16,7 +16,7 @@
 class GeoHEIF final
 {
     mutable OGRSpatialReference m_oSRS{};
-    double modelTransform[6]; // TODO: default values?
+    double modelTransform[6];  // TODO: default values?
     bool haveGCPs = false;
     std::vector<GDAL_GCP> gcps;
 

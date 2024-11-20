@@ -52,7 +52,8 @@ static double int_as_double(const uint8_t *data, uint32_t index)
 void GeoHEIF::setModelTransformation(const uint8_t *payload, size_t length)
 {
     // TODO: this only handles the 2D case.
-    if (length != (6 * 8 + 4)) {
+    if (length != (6 * 8 + 4))
+    {
         return;
     }
     // Match version
@@ -76,7 +77,6 @@ void GeoHEIF::setModelTransformation(const uint8_t *payload, size_t length)
         }
     }
 }
-
 
 CPLErr GeoHEIF::GetGeoTransform(double *padfTransform) const
 {
@@ -117,14 +117,15 @@ void GeoHEIF::extractSRS(const uint8_t *payload, size_t length) const
     }
     else if (crsEncoding == "curi")
     {
-        if ((crs.at(0) != '[') || (crs.at(crs.length() -1) != ']')) {
+        if ((crs.at(0) != '[') || (crs.at(crs.length() - 1) != ']'))
+        {
             return;
         }
         std::cout << "safe CURIE: " << crs << std::endl;
         std::string curie = crs.substr(1, crs.length() - 2);
         std::cout << "curie: " << curie << std::endl;
-        std::string authority = "EPSG"; // TODO
-        std::string code = "32755"; // TODO
+        std::string authority = "EPSG";  // TODO
+        std::string code = "32755";      // TODO
         std::string osURL("http://www.opengis.net/def/crs/");
         osURL.append(authority);
         osURL += "/0/";
@@ -137,15 +138,14 @@ void GeoHEIF::extractSRS(const uint8_t *payload, size_t length) const
     }
 }
 
-void GeoHEIF::addGCPs(const uint8_t* data, size_t length)
+void GeoHEIF::addGCPs(const uint8_t *data, size_t length)
 {
     if (data[0] == 0x00)
     {
         uint32_t index = 0;
         bool is_3D = (data[index + 3] == 0x00);
         index += 4;
-        uint16_t count =
-            (data[index] << 8) + (data[index + 1]);
+        uint16_t count = (data[index] << 8) + (data[index + 1]);
         index += 2;
         for (uint16_t j = 0; (j < count) && (index < length); j++)
         {
@@ -177,7 +177,8 @@ void GeoHEIF::addGCPs(const uint8_t* data, size_t length)
     }
 }
 
-int GeoHEIF::GetGCPCount() const {
+int GeoHEIF::GetGCPCount() const
+{
     return (int)gcps.size();
 }
 

@@ -19,6 +19,8 @@
 
 #include "heifdrivercore.h"
 
+#include "geoheif.h"
+
 #include <vector>
 
 /************************************************************************/
@@ -43,9 +45,7 @@ class GDALHEIFDataset final : public GDALPamDataset
 #endif
 
 #if LIBHEIF_NUMERIC_VERSION >= BUILD_LIBHEIF_VERSION(1, 19, 0)
-    mutable OGRSpatialReference m_oSRS{};
-    bool has_GCPs = true; // lets be optimistic the first time
-    std::vector<GDAL_GCP> gcps;
+    GeoHEIF geoHEIF;
 #endif
 
 #ifdef HAS_CUSTOM_FILE_READER
@@ -62,7 +62,9 @@ class GDALHEIFDataset final : public GDALPamDataset
 
     bool Init(GDALOpenInfo *poOpenInfo);
     void ReadMetadata();
+    void ReadUserDescription();
     void OpenThumbnails();
+    void ExtractUserDescription(const uint8_t *payload, size_t length);
 
 #ifdef HAS_CUSTOM_FILE_WRITER
     static heif_error VFS_WriterCallback(struct heif_context *ctx,
@@ -84,7 +86,6 @@ class GDALHEIFDataset final : public GDALPamDataset
     CPLErr GetGeoTransform(double *) override;
     int GetGCPCount() override;
     const GDAL_GCP *GetGCPs() override;
-    void extractSRS(const uint8_t *payload, size_t length) const;
     const OGRSpatialReference *GetGCPSpatialRef() const override;
 #endif
 

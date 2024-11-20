@@ -139,59 +139,52 @@ void GeoHEIF::extractSRS(const uint8_t *payload, size_t length) const
     }
 }
 
-int GeoHEIF::GetGCPCount(std::shared_ptr<std::vector<uint8_t>> data)
+void GeoHEIF::addGCP(std::shared_ptr<std::vector<uint8_t>> data)
 {
-    if (!haveGCPs)
+    if (data->data()[0] == 0x00)
     {
-        return 0;
-    }
-    if (gcps.size() == 0)
-    {
-        if (data->data()[0] == 0x00)
+        uint32_t index = 0;
+        bool is_3D = (data->data()[index + 3] == 0x00);
+        index += 4;
+        uint16_t count =
+            (data->data()[index] << 8) + (data->data()[index + 1]);
+        index += 2;
+        for (uint16_t j = 0; j < count; j++)
         {
-            uint32_t index = 0;
-            bool is_3D = (data->data()[index + 3] == 0x00);
+            GDAL_GCP gcp;
+            char szID[32];
+            snprintf(szID, sizeof(szID), "%d", j);
+            gcp.pszId = CPLStrdup(szID);
+            gcp.pszInfo = CPLStrdup("");
+            gcp.dfGCPPixel = int_as_double(data->data(), index);
             index += 4;
-            uint16_t count =
-                (data->data()[index] << 8) + (data->data()[index + 1]);
-            index += 2;
-            for (uint16_t j = 0; j < count; j++)
+            gcp.dfGCPLine = int_as_double(data->data(), index);
+            index += 4;
+            gcp.dfGCPX = to_double(data->data(), index);
+            index += 8;
+            gcp.dfGCPY = to_double(data->data(), index);
+            index += 8;
+            if (is_3D)
             {
-                GDAL_GCP gcp;
-                char szID[32];
-                snprintf(szID, sizeof(szID), "%d", j);
-                gcp.pszId = CPLStrdup(szID);
-                gcp.pszInfo = CPLStrdup("");
-                gcp.dfGCPPixel = int_as_double(data->data(), index);
-                index += 4;
-                gcp.dfGCPLine = int_as_double(data->data(), index);
-                index += 4;
-                gcp.dfGCPX = to_double(data->data(), index);
+                gcp.dfGCPZ = to_double(data->data(), index);
                 index += 8;
-                gcp.dfGCPY = to_double(data->data(), index);
-                index += 8;
-                if (is_3D)
-                {
-                    gcp.dfGCPZ = to_double(data->data(), index);
-                    index += 8;
-                }
-                else
-                {
-                    gcp.dfGCPZ = 0.0;
-                }
-                gcps.push_back(gcp);
             }
-            return (int)gcps.size();
+            else
+            {
+                gcp.dfGCPZ = 0.0;
+            }
+            haveGCPs = true;
+            gcps.push_back(gcp);
         }
-        // if we get to here, the property wasn't found, so no GCPs.
-        haveGCPs = false;
     }
-    return 0;
+}
+
+int GeoHEIF::GetGCPCount() const {
+    return gcps.size();
 }
 
 const GDAL_GCP *GeoHEIF::GetGCPs()
 {
-    // TODO: check if we have any first, and parse out
     return gcps.data();
 }
 

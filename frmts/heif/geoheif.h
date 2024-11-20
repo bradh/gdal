@@ -18,7 +18,7 @@
 class GeoHEIF final
 {
     mutable OGRSpatialReference m_oSRS{};
-    bool haveGCPs = true; // lets be optimistic the first time
+    bool haveGCPs = false;
     std::vector<GDAL_GCP> gcps;
 
   public:
@@ -30,7 +30,8 @@ class GeoHEIF final
     const OGRSpatialReference *GetSpatialRef() const;
     const OGRSpatialReference *GetSpatialRef(std::shared_ptr<std::vector<uint8_t>> data) const;
     CPLErr GetGeoTransform(std::shared_ptr<std::vector<uint8_t>>, double *);
-    int GetGCPCount(std::shared_ptr<std::vector<uint8_t>>);
+    void addGCP(std::shared_ptr<std::vector<uint8_t>>);
+    int GetGCPCount() const;
     const GDAL_GCP *GetGCPs();
     void extractSRS(const uint8_t *payload, size_t length) const;
     const OGRSpatialReference *GetGCPSpatialRef(std::shared_ptr<std::vector<uint8_t>> data) const;

@@ -889,9 +889,8 @@ const OGRSpatialReference *GDALHEIFDataset::GetSpatialRef() const
 
 int GDALHEIFDataset::GetGCPCount()
 {
-    if (!geoHEIF.has_GCPs())
-    {
-        return 0;
+    if (geoHEIF.has_GCPs()) {
+        return geoHEIF.GetGCPCount();
     }
     // Get the GCPs if we can
     heif_property_id prop_ids[10];
@@ -912,9 +911,9 @@ int GDALHEIFDataset::GetGCPCount()
         {
             continue;
         }
-        return geoHEIF.GetGCPCount(data);
+        geoHEIF.addGCP(data);
     }
-    return 0;
+    return geoHEIF.GetGCPCount();
 }
 
 const GDAL_GCP *GDALHEIFDataset::GetGCPs()

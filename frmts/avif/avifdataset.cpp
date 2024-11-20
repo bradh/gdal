@@ -23,6 +23,7 @@
 #include <cinttypes>
 #include <vector>
 #include <iostream>
+#include <heif/geoheif.h>
 
 constexpr const char *DEFAULT_QUALITY_STR = "60";
 constexpr const char *DEFAULT_QUALITY_ALPHA_STR = "100";
@@ -41,7 +42,7 @@ class GDALAVIFDataset final : public GDALPamDataset
     bool m_bDecodedOK = false;
     int m_iPart = 0;
     avifRGBImage m_rgb{};  // memset()' to 0 in constructor
-
+    GeoHEIF geoHEIF{};
     bool Init(GDALOpenInfo *poOpenInfo);
     bool Decode();
 
@@ -56,19 +57,13 @@ class GDALAVIFDataset final : public GDALPamDataset
     void extractModelTransformation(const uint8_t *payload,
                                     size_t length) const;
     void extractUserDescription(const uint8_t *payload, size_t length);
-    void extractGCPs(const uint8_t *payload, size_t length);
     mutable OGRSpatialReference m_oSRS{};
     mutable bool m_bHasGeoTransform = false;
     mutable double m_adfGeoTransform[6]{0, 1, 0, 0, 0, 1};
-    std::vector<GDAL_GCP> gcps;
 #endif
 
   public:
-#ifdef AVIF_HAS_OPAQUE_PROPERTIES
-    GDALAVIFDataset() : gcps()
-#else
     GDALAVIFDataset()
-#endif
     {
         memset(&m_rgb, 0, sizeof(m_rgb));
     }
@@ -403,20 +398,7 @@ void GDALAVIFDataset::getSRS() const
 /************************************************************************/
 CPLErr GDALAVIFDataset::GetGeoTransform(double *padfTransform)
 {
-    if (m_bHasGeoTransform)
-    {
-        memcpy(padfTransform, m_adfGeoTransform, sizeof(double) * 6);
-        return CE_None;
-    }
-
-    if (!m_bHasGeoTransform)
-    {
-        return CE_Failure;
-    }
-
-    memcpy(padfTransform, m_adfGeoTransform, sizeof(double) * 6);
-
-    return CE_None;
+    return geoHEIF.GetGeoTransform(padfTransform);
 }
 
 void GDALAVIFDataset::processProperties()
@@ -430,12 +412,12 @@ void GDALAVIFDataset::processProperties()
         }
         else if (!memcmp(prop->boxtype, "mtxf", 4))
         {
-            extractModelTransformation(prop->boxPayload.data,
+            geoHEIF.setModelTransformation(prop->boxPayload.data,
                                        prop->boxPayload.size);
         }
         else if (!memcmp(prop->boxtype, "tiep", 4))
         {
-            extractGCPs(prop->boxPayload.data, prop->boxPayload.size);
+            geoHEIF.addGCPs(prop->boxPayload.data, prop->boxPayload.size);
         }
         else if (!memcmp(prop->boxtype, "udes", 4))
         {
@@ -484,77 +466,6 @@ void GDALAVIFDataset::extractSRS(const uint8_t *payload, size_t length) const
     }
 }
 
-static uint32_t to_uint32(const uint8_t *data, uint32_t index)
-{
-    uint32_t v = 0;
-    v |= static_cast<uint32_t>(data[index]) << 24;
-    v |= static_cast<uint32_t>(data[index + 1]) << 16;
-    v |= static_cast<uint32_t>(data[index + 2]) << 8;
-    v |= static_cast<uint32_t>(data[index + 3]) << 0;
-    return v;
-}
-
-static int32_t to_int32(const uint8_t *data, uint32_t index)
-{
-    uint32_t v = to_uint32(data, index);
-    int32_t r = 0;
-    memcpy(&r, &v, sizeof(v));
-    return r;
-}
-
-static uint64_t to_uint64(const uint8_t *data, uint32_t index)
-{
-    uint64_t v = 0;
-    v |= static_cast<uint64_t>(data[index]) << 56;
-    v |= static_cast<uint64_t>(data[index + 1]) << 48;
-    v |= static_cast<uint64_t>(data[index + 2]) << 40;
-    v |= static_cast<uint64_t>(data[index + 3]) << 32;
-    v |= static_cast<uint64_t>(data[index + 4]) << 24;
-    v |= static_cast<uint64_t>(data[index + 5]) << 16;
-    v |= static_cast<uint64_t>(data[index + 6]) << 8;
-    v |= static_cast<uint64_t>(data[index + 7]) << 0;
-    return v;
-}
-
-static double to_double(const uint8_t *data, uint32_t index)
-{
-    uint64_t v = to_uint64(data, index);
-    double d = 0;
-    memcpy(&d, &v, sizeof(d));
-    return d;
-}
-
-void GDALAVIFDataset::extractModelTransformation(const uint8_t *payload,
-                                                 size_t length) const
-{
-    // TODO: this only handles the 2D case.
-    if (length != 52)
-    {
-        return;
-    }
-    // Match version
-    if (payload[0] == 0x00)
-    {
-        uint32_t index = 0;
-        if (payload[index + 3] == 0x01)
-        {
-            index += 4;
-            m_adfGeoTransform[1] = to_double(payload, index);
-            index += 8;
-            m_adfGeoTransform[2] = to_double(payload, index);
-            index += 8;
-            m_adfGeoTransform[0] = to_double(payload, index);
-            index += 8;
-            m_adfGeoTransform[4] = to_double(payload, index);
-            index += 8;
-            m_adfGeoTransform[5] = to_double(payload, index);
-            index += 8;
-            m_adfGeoTransform[3] = to_double(payload, index);
-            m_bHasGeoTransform = true;
-        }
-    }
-}
-
 void GDALAVIFDataset::extractUserDescription(const uint8_t *payload,
                                              size_t length)
 {
@@ -586,57 +497,14 @@ void GDALAVIFDataset::extractUserDescription(const uint8_t *payload,
     }
 }
 
-void GDALAVIFDataset::extractGCPs(const uint8_t *payload, size_t length)
-{
-    if (length < 30)
-    {
-        return;
-    }
-    // Match version
-    if (payload[0] == 0x00)
-    {
-        uint32_t index = 0;
-        bool is_3D = (payload[3] == 0x00);
-        index += 4;
-        uint16_t count = (payload[index] << 8) + (payload[index + 1]);
-        index += 2;
-        for (uint16_t j = 0; j < count; j++)
-        {
-            GDAL_GCP gcp;
-            char szID[32];
-            snprintf(szID, sizeof(szID), "%d", j);
-            gcp.pszId = CPLStrdup(szID);
-            gcp.pszInfo = CPLStrdup("");
-            gcp.dfGCPPixel = static_cast<double>(to_int32(payload, index));
-            index += sizeof(int32_t);
-            gcp.dfGCPLine = static_cast<double>(to_int32(payload, index));
-            index += sizeof(int32_t);
-            gcp.dfGCPX = to_double(payload, index);
-            index += sizeof(double);
-            gcp.dfGCPY = to_double(payload, index);
-            index += sizeof(double);
-            if (is_3D)
-            {
-                gcp.dfGCPZ = to_double(payload, index);
-                index += sizeof(double);
-            }
-            else
-            {
-                gcp.dfGCPZ = 0.0;
-            }
-            gcps.push_back(gcp);
-        }
-    }
-}
-
 int GDALAVIFDataset::GetGCPCount()
 {
-    return gcps.size();
+    return geoHEIF.GetGCPCount();
 }
 
 const GDAL_GCP *GDALAVIFDataset::GetGCPs()
 {
-    return gcps.data();
+    return geoHEIF.GetGCPs();
 }
 
 const OGRSpatialReference *GDALAVIFDataset::GetGCPSpatialRef() const

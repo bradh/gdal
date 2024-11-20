@@ -22,7 +22,7 @@ bool GeoHEIF::has_GCPs() const
     return haveGCPs;
 }
 
-static double to_double(uint8_t *data, uint32_t index)
+static double to_double(const uint8_t *data, uint32_t index)
 {
     uint64_t v = 0;
     v |= ((uint64_t)data[index]) << 56;
@@ -39,7 +39,7 @@ static double to_double(uint8_t *data, uint32_t index)
     return d;
 }
 
-static double int_as_double(uint8_t *data, uint32_t index)
+static double int_as_double(const uint8_t *data, uint32_t index)
 {
     uint32_t v = 0;
     v |= ((uint64_t)data[index + 0]) << 24;
@@ -49,31 +49,44 @@ static double int_as_double(uint8_t *data, uint32_t index)
     return (double)v;
 }
 
-CPLErr GeoHEIF::GetGeoTransform(std::shared_ptr<std::vector<uint8_t>> data, double *padfTransform)
+void GeoHEIF::setModelTransformation(const uint8_t *payload, size_t length)
 {
-    // TODO: cache transform
+    // TODO: this only handles the 2D case.
+    if (length != (6 * 8 + 4)) {
+        return;
+    }
     // Match version
-    if (data->data()[0] == 0x00)
+    if (payload[0] == 0x00)
     {
         uint32_t index = 0;
-        if (data->data()[index + 3] == 0x01)
+        if (payload[index + 3] == 0x01)
         {
             index += 4;
-            padfTransform[1] = to_double(data->data(), index);
+            modelTransform[1] = to_double(payload, index);
             index += 8;
-            padfTransform[2] = to_double(data->data(), index);
+            modelTransform[2] = to_double(payload, index);
             index += 8;
-            padfTransform[0] = to_double(data->data(), index);
+            modelTransform[0] = to_double(payload, index);
             index += 8;
-            padfTransform[4] = to_double(data->data(), index);
+            modelTransform[4] = to_double(payload, index);
             index += 8;
-            padfTransform[5] = to_double(data->data(), index);
+            modelTransform[5] = to_double(payload, index);
             index += 8;
-            padfTransform[3] = to_double(data->data(), index);
-            return CE_None;
+            modelTransform[3] = to_double(payload, index);
         }
     }
-    return CE_Failure;
+}
+
+
+CPLErr GeoHEIF::GetGeoTransform(double *padfTransform) const
+{
+    padfTransform[1] = modelTransform[1];
+    padfTransform[2] = modelTransform[2];
+    padfTransform[0] = modelTransform[0];
+    padfTransform[4] = modelTransform[4];
+    padfTransform[5] = modelTransform[5];
+    padfTransform[3] = modelTransform[3];
+    return CE_None;
 }
 
 /************************************************************************/
@@ -81,21 +94,6 @@ CPLErr GeoHEIF::GetGeoTransform(std::shared_ptr<std::vector<uint8_t>> data, doub
 /************************************************************************/
 const OGRSpatialReference *GeoHEIF::GetSpatialRef() const
 {
-    return &m_oSRS;
-}
-
-/************************************************************************/
-/*                          GetSpatialRef()                             */
-/************************************************************************/
-const OGRSpatialReference *GeoHEIF::GetSpatialRef(std::shared_ptr<std::vector<uint8_t>> data) const
-{
-    if (!m_oSRS.IsEmpty())
-        return &m_oSRS;
-
-    if (data->data()[0] == 0x00)
-    {
-        extractSRS(data->data(), data->size());
-    }
     return &m_oSRS;
 }
 
@@ -139,34 +137,34 @@ void GeoHEIF::extractSRS(const uint8_t *payload, size_t length) const
     }
 }
 
-void GeoHEIF::addGCP(std::shared_ptr<std::vector<uint8_t>> data)
+void GeoHEIF::addGCPs(const uint8_t* data, size_t length)
 {
-    if (data->data()[0] == 0x00)
+    if (data[0] == 0x00)
     {
         uint32_t index = 0;
-        bool is_3D = (data->data()[index + 3] == 0x00);
+        bool is_3D = (data[index + 3] == 0x00);
         index += 4;
         uint16_t count =
-            (data->data()[index] << 8) + (data->data()[index + 1]);
+            (data[index] << 8) + (data[index + 1]);
         index += 2;
-        for (uint16_t j = 0; j < count; j++)
+        for (uint16_t j = 0; (j < count) && (index < length); j++)
         {
             GDAL_GCP gcp;
             char szID[32];
             snprintf(szID, sizeof(szID), "%d", j);
             gcp.pszId = CPLStrdup(szID);
             gcp.pszInfo = CPLStrdup("");
-            gcp.dfGCPPixel = int_as_double(data->data(), index);
+            gcp.dfGCPPixel = int_as_double(data, index);
             index += 4;
-            gcp.dfGCPLine = int_as_double(data->data(), index);
+            gcp.dfGCPLine = int_as_double(data, index);
             index += 4;
-            gcp.dfGCPX = to_double(data->data(), index);
+            gcp.dfGCPX = to_double(data, index);
             index += 8;
-            gcp.dfGCPY = to_double(data->data(), index);
+            gcp.dfGCPY = to_double(data, index);
             index += 8;
             if (is_3D)
             {
-                gcp.dfGCPZ = to_double(data->data(), index);
+                gcp.dfGCPZ = to_double(data, index);
                 index += 8;
             }
             else
@@ -188,7 +186,7 @@ const GDAL_GCP *GeoHEIF::GetGCPs()
     return gcps.data();
 }
 
-const OGRSpatialReference *GeoHEIF::GetGCPSpatialRef(std::shared_ptr<std::vector<uint8_t>> data) const
+const OGRSpatialReference *GeoHEIF::GetGCPSpatialRef() const
 {
-    return this->GetSpatialRef(data);
+    return this->GetSpatialRef();
 }

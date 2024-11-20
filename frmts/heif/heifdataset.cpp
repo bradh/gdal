@@ -832,16 +832,12 @@ CPLErr GDALHEIFDataset::GetGeoTransform(double *padfTransform)
         {
             continue;
         }
-        // TODO: this only handles the 2D case.
-        // TODO: move this into GeoHEIF code
-        if (size != 52)
-        {
-            continue;
-        }
         auto data = std::make_shared<std::vector<uint8_t>>(size);
         heif_item_get_property_raw_data(m_hCtxt, item_id, prop_ids[i],
                                         data->data());
-        return geoHEIF.GetGeoTransform(data, padfTransform);
+        geoHEIF.setModelTransformation(data->data(), data->size());
+        geoHEIF.GetGeoTransform(padfTransform);
+        return CE_None;
     }
 
     return CE_Failure;
@@ -882,7 +878,8 @@ const OGRSpatialReference *GDALHEIFDataset::GetSpatialRef() const
         {
             continue;
         }
-        return geoHEIF.GetSpatialRef(data);
+        geoHEIF.extractSRS(data->data(), data->size());
+        return geoHEIF.GetSpatialRef();
     }
     return nullptr;
 }
@@ -911,7 +908,7 @@ int GDALHEIFDataset::GetGCPCount()
         {
             continue;
         }
-        geoHEIF.addGCP(data);
+        geoHEIF.addGCPs(data->data(), data->size());
     }
     return geoHEIF.GetGCPCount();
 }

@@ -180,7 +180,7 @@ void GeoHEIF::addGCP(std::shared_ptr<std::vector<uint8_t>> data)
 }
 
 int GeoHEIF::GetGCPCount() const {
-    return gcps.size();
+    return (int)gcps.size();
 }
 
 const GDAL_GCP *GeoHEIF::GetGCPs()

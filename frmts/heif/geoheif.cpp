@@ -186,7 +186,7 @@ int GeoHEIF::GetGCPCount(std::shared_ptr<std::vector<uint8_t>> data)
         // if we get to here, the property wasn't found, so no GCPs.
         haveGCPs = false;
     }
-    return gcps.size();
+    return 0;
 }
 
 const GDAL_GCP *GeoHEIF::GetGCPs()

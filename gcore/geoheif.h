@@ -1,0 +1,36 @@
+/******************************************************************************
+ * Project:  GeoHEIF support class
+ * SPDX-License-Identifier: MIT
+ ****************************************************************************/
+
+#ifndef GEOHEIF_H_INCLUDED_
+#define GEOHEIF_H_INCLUDED_
+
+#include "gdal_pam.h"
+#include "ogr_spatialref.h"
+
+#include <vector>
+
+class GeoHEIF final
+{
+    mutable OGRSpatialReference m_oSRS{};
+    double modelTransform[6];  // TODO: default values?
+    bool haveGCPs = false;
+    std::vector<GDAL_GCP> gcps;
+
+  public:
+    GeoHEIF();
+    ~GeoHEIF();
+
+    bool has_SRS() const;
+    bool has_GCPs() const;
+    const OGRSpatialReference *GetSpatialRef() const;
+    void setModelTransformation(const uint8_t *payload, size_t length);
+    CPLErr GetGeoTransform(double *) const;
+    void addGCPs(const uint8_t *payload, size_t length);
+    int GetGCPCount() const;
+    const GDAL_GCP *GetGCPs();
+    void extractSRS(const uint8_t *payload, size_t length) const;
+    const OGRSpatialReference *GetGCPSpatialRef() const;
+};
+#endif /* GEOHEIF_H_INCLUDED_ */

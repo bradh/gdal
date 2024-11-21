@@ -74,7 +74,7 @@ RUN apt-get update && \
     zip
 
 # temporary libavif build
-RUN apt-get install -y --allow-unauthenticated libaom-dev
+RUN apt-get install -y --allow-unauthenticated libaom-dev libyuv-dev
 RUN git clone --depth 1 https://github.com/AOMediaCodec/libavif.git libavif-git && \
     cd libavif-git && \
     mkdir build && \

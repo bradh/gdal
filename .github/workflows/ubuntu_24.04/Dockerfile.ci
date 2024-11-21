@@ -79,7 +79,7 @@ RUN git clone --depth 1 https://github.com/AOMediaCodec/libavif.git libavif-git 
     cd libavif-git && \
     mkdir build && \
     cd build && \
-    cmake .. && \
+    cmake -DAVIF_CODEC_AOM=SYSTEM .. && \
     make -j$(nproc) && \
     make install
 

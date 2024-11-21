@@ -42,7 +42,6 @@ class GDALAVIFDataset final : public GDALPamDataset
     bool m_bDecodedOK = false;
     int m_iPart = 0;
     avifRGBImage m_rgb{};  // memset()' to 0 in constructor
-    GeoHEIF geoHEIF{};
     bool Init(GDALOpenInfo *poOpenInfo);
     bool Decode();
 
@@ -57,9 +56,7 @@ class GDALAVIFDataset final : public GDALPamDataset
     void extractModelTransformation(const uint8_t *payload,
                                     size_t length) const;
     void extractUserDescription(const uint8_t *payload, size_t length);
-    mutable OGRSpatialReference m_oSRS{};
-    mutable bool m_bHasGeoTransform = false;
-    mutable double m_adfGeoTransform[6]{0, 1, 0, 0, 0, 1};
+    GeoHEIF geoHEIF{};
 #endif
 
   public:
@@ -371,26 +368,7 @@ GDALAVIFIO::GDALAVIFIO(VSIVirtualHandleUniquePtr fpIn) : fp(std::move(fpIn))
 /************************************************************************/
 const OGRSpatialReference *GDALAVIFDataset::GetSpatialRef() const
 {
-    if (!m_oSRS.IsEmpty())
-    {
-        return &m_oSRS;
-    }
-
-    getSRS();
-    return &m_oSRS;
-}
-
-void GDALAVIFDataset::getSRS() const
-{
-    for (size_t i = 0; i < m_decoder->image->numProperties; i++)
-    {
-        avifImageItemProperty *prop = &(m_decoder->image->properties[i]);
-        if (!memcmp(prop->boxtype, "mcrs", 4))
-        {
-            extractSRS(prop->boxPayload.data, prop->boxPayload.size);
-            break;
-        }
-    }
+    return geoHEIF.GetSpatialRef();
 }
 
 /************************************************************************/
@@ -408,7 +386,7 @@ void GDALAVIFDataset::processProperties()
         avifImageItemProperty *prop = &(m_decoder->image->properties[i]);
         if (!memcmp(prop->boxtype, "mcrs", 4))
         {
-            extractSRS(prop->boxPayload.data, prop->boxPayload.size);
+            geoHEIF.extractSRS(prop->boxPayload.data, prop->boxPayload.size);
         }
         else if (!memcmp(prop->boxtype, "mtxf", 4))
         {
@@ -424,46 +402,6 @@ void GDALAVIFDataset::processProperties()
             extractUserDescription(prop->boxPayload.data,
                                    prop->boxPayload.size);
         }
-    }
-}
-
-void GDALAVIFDataset::extractSRS(const uint8_t *payload, size_t length) const
-{
-    if (length < 6)
-    {
-        return;
-    }
-    std::string crsEncoding(payload + 4, payload + 8);
-    // std::cout << "crsEncoding: " << crsEncoding << std::endl;
-    std::string crs(payload + 8, payload + length - 1);
-    // std::cout << "crs: |" << crs << "|" << std::endl;
-    if (crsEncoding == "wkt2")
-    {
-        m_oSRS.importFromWkt(crs.c_str());
-    }
-    else if (crsEncoding == "crsu")
-    {
-        m_oSRS.importFromCRSURL(crs.c_str());
-    }
-    else if (crsEncoding == "curi")
-    {
-        if ((crs.at(0) != '[') || (crs.at(crs.length() - 1) != ']'))
-        {
-            return;
-        }
-        std::string curie = crs.substr(1, crs.length() - 2);
-        std::size_t colon_separator = curie.find(':');
-        std::string authority = curie.substr(0, colon_separator);
-        std::string code = curie.substr(colon_separator + 1);
-        std::string osURL("http://www.opengis.net/def/crs/");
-        osURL.append(authority);
-        osURL += "/0/";
-        osURL.append(code);
-        m_oSRS.importFromCRSURL(osURL.c_str());
-    }
-    else
-    {
-        return;
     }
 }
 

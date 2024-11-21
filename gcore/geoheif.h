@@ -13,7 +13,7 @@
 
 //! @cond Doxygen_Suppress
 
-/**
+/*
  * GeoHEIF support implementation.
  * 
  * This class provides shared implementation for OGC GeoHEIF georeferencing,
@@ -47,4 +47,7 @@ class CPL_DLL GeoHEIF final
     void extractSRS(const uint8_t *payload, size_t length) const;
     const OGRSpatialReference *GetGCPSpatialRef() const;
 };
+
+//! @endcond
+
 #endif /* GEOHEIF_H_INCLUDED_ */

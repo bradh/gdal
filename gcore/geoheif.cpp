@@ -4,6 +4,8 @@
  ****************************************************************************/
 #include "geoheif.h"
 
+//! @cond Doxygen_Suppress
+
 GeoHEIF::GeoHEIF() : gcps(0)
 {
 }
@@ -189,3 +191,5 @@ const OGRSpatialReference *GeoHEIF::GetGCPSpatialRef() const
 {
     return this->GetSpatialRef();
 }
+
+//! @endcond

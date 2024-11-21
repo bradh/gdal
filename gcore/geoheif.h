@@ -11,7 +11,21 @@
 
 #include <vector>
 
-class GeoHEIF final
+//! @cond Doxygen_Suppress
+
+/**
+ * GeoHEIF support implementation.
+ * 
+ * This class provides shared implementation for OGC GeoHEIF georeferencing,
+ * which is currently in draft (see OGC 24-038).
+ * 
+ * GeoHEIF provides parsing and caching for spatial references, pixel
+ * to model affine transformation, and tie-points.
+ * 
+ * This class is only shared here to provide common usage within
+ * AVIF and HEIF drivers. It is not intended to be a user-level API.
+*/
+class CPL_DLL GeoHEIF final
 {
     mutable OGRSpatialReference m_oSRS{};
     double modelTransform[6] = {0.0};

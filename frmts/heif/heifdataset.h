@@ -19,9 +19,8 @@
 
 #include "heifdrivercore.h"
 
-#include "geoheif.h"
-
 #include <vector>
+#include <geoheif.h>
 
 /************************************************************************/
 /*                        GDALHEIFDataset                               */

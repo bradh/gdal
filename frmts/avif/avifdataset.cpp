@@ -23,7 +23,7 @@
 #include <cinttypes>
 #include <vector>
 #include <iostream>
-#include <heif/geoheif.h>
+#include <geoheif.h>
 
 constexpr const char *DEFAULT_QUALITY_STR = "60";
 constexpr const char *DEFAULT_QUALITY_ALPHA_STR = "100";

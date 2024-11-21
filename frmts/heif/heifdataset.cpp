@@ -284,7 +284,9 @@ bool GDALHEIFDataset::Init(GDALOpenInfo *poOpenInfo)
 
 void GDALHEIFDataset::ReadMetadata()
 {
+#if LIBHEIF_NUMERIC_VERSION >= BUILD_LIBHEIF_VERSION(1, 19, 0)
     ReadUserDescription();
+#endif
     const int nMDBlocks = heif_image_handle_get_number_of_metadata_blocks(
         m_hImageHandle, nullptr);
     if (nMDBlocks <= 0)
@@ -409,12 +411,12 @@ void GDALHEIFDataset::ReadMetadata()
     }
 }
 
+#if LIBHEIF_NUMERIC_VERSION >= BUILD_LIBHEIF_VERSION(1, 19, 0)
 /************************************************************************/
 /*                         ReadUserDescription()                             */
 /************************************************************************/
 void GDALHEIFDataset::ReadUserDescription()
 {
-#if LIBHEIF_NUMERIC_VERSION >= BUILD_LIBHEIF_VERSION(1, 19, 0)
     constexpr int MAX_PROPERTIES = 50;
     heif_item_id item_id = heif_image_handle_get_item_id(m_hImageHandle);
     heif_property_id properties[MAX_PROPERTIES];
@@ -445,8 +447,8 @@ void GDALHEIFDataset::ReadUserDescription()
             heif_property_user_description_release(user_description);
         }
     }
-#endif
 }
+#endif
 
 /************************************************************************/
 /*                         OpenThumbnails()                             */

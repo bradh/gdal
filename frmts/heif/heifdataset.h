@@ -61,7 +61,6 @@ class GDALHEIFDataset final : public GDALPamDataset
 
     bool Init(GDALOpenInfo *poOpenInfo);
     void ReadMetadata();
-    void ReadUserDescription();
     void OpenThumbnails();
     void ExtractUserDescription(const uint8_t *payload, size_t length);
 
@@ -81,6 +80,7 @@ class GDALHEIFDataset final : public GDALPamDataset
 #endif
 
 #if LIBHEIF_NUMERIC_VERSION >= BUILD_LIBHEIF_VERSION(1, 19, 0)
+    void ReadUserDescription();
     const OGRSpatialReference *GetSpatialRef() const override;
     CPLErr GetGeoTransform(double *) override;
     int GetGCPCount() override;

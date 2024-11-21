@@ -435,14 +435,12 @@ void GDALHEIFDataset::ReadUserDescription()
                 domain += "_";
                 domain += user_description->lang;
             }
-            GDALDataset::SetMetadataItem("NAME", user_description->name,
-                                         domain.c_str());
-            GDALDataset::SetMetadataItem(
-                "DESCRIPTION", user_description->description, domain.c_str());
+            SetMetadataItem("NAME", user_description->name, domain.c_str());
+            SetMetadataItem("DESCRIPTION", user_description->description,
+                            domain.c_str());
             if (strlen(user_description->tags) != 0)
             {
-                GDALDataset::SetMetadataItem("TAGS", user_description->tags,
-                                             domain.c_str());
+                SetMetadataItem("TAGS", user_description->tags, domain.c_str());
             }
             heif_property_user_description_release(user_description);
         }
